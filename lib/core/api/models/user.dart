@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter/foundation.dart';
 import 'json_converters.dart';
+import 'profile.dart';
 
 part 'user.freezed.dart';
 part 'user.g.dart';
@@ -24,6 +25,7 @@ class UserAttributes with _$UserAttributes {
     @JsonKey(name: 'created_at') 
     @UtcDateTimeConverter()
     required DateTime createdAt,
+    Profile? profile,
   }) = _UserAttributes;
 
   factory UserAttributes.fromJson(Map<String, dynamic> json) =>

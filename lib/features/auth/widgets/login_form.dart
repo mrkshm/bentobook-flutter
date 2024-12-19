@@ -1,12 +1,9 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/features/auth/models/auth_form_state.dart';
-import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/features/auth/validators.dart';
-import 'package:bentobook/features/auth/widgets/shared/auth_text_field.dart';
-import 'dart:developer' as dev;
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/features/auth/providers/auth_provider.dart';
+import 'package:bentobook/core/auth/auth_state.dart';
+import 'dart:developer' as dev;
 
 class LoginForm extends ConsumerStatefulWidget {
   const LoginForm({super.key});
@@ -16,128 +13,117 @@ class LoginForm extends ConsumerStatefulWidget {
 }
 
 class _LoginFormState extends ConsumerState<LoginForm> {
-  var _formState = const LoginFormState();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
 
-  void _validateEmail(String value) {
-    final error = AuthValidators.validateEmail(value);
-    
-    final newState = LoginFormState(
-      email: value,
-      password: _formState.password,
-      emailError: error,
-      passwordError: _formState.passwordError,
-    );
-    
-    setState(() {
-      _formState = newState;
-    });
-  }
-
-  void _validatePassword(String value) {
-    final error = AuthValidators.validatePassword(value);
-    
-    final newState = LoginFormState(
-      email: _formState.email,
-      password: value,
-      emailError: _formState.emailError,
-      passwordError: error,
-    );
-    
-    setState(() {
-      _formState = newState;
-    });
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleSubmit() async {
-    dev.log('LoginForm: Handling submit');
-    if (_formState.isValid) {
-      dev.log('LoginForm: Form is valid, attempting login');
-      
-      try {
-        // Start transition to dashboard and keep it transitioning until we're done
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final success = await ref.read(authProvider.notifier).login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (success) {
+        dev.log('LoginForm: Login successful');
         ref.read(navigationProvider.notifier).startTransition('/dashboard');
-        
-        // Do login
-        await ref.read(authServiceProvider.notifier).login(
-          email: _formState.email,
-          password: _formState.password,
+      } else {
+        final authState = ref.read(authProvider);
+        authState.maybeMap(
+          error: (state) => setState(() {
+            _error = state.message;
+          }),
+          orElse: () => setState(() {
+            _error = 'Login failed';
+          }),
         );
-        
-        // Check auth state
-        final authState = ref.read(authServiceProvider);
-        
-        // Only end transition if login was successful
-        if (mounted && authState.maybeWhen(
-          authenticated: (_, __) => true,
-          orElse: () => false,
-        )) {
-          // Wait a bit for auth state to propagate
-          await Future.delayed(const Duration(milliseconds: 100));
-          ref.read(navigationProvider.notifier).endTransition();
-        }
-      } catch (e) {
-        dev.log('LoginForm: Login error - $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString())),
-          );
-        }
       }
-    } else {
-      dev.log('LoginForm: Form is invalid');
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final authState = ref.watch(authServiceProvider);
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.maybeMap(
+      loading: (_) => true,
+      orElse: () => false,
+    );
     
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        authState.maybeWhen(
-          error: (message) => Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              message,
-              style: TextStyle(
-                color: theme.colorScheme.onErrorContainer,
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CupertinoTextFormFieldRow(
+            controller: _emailController,
+            placeholder: 'Email',
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your email';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          CupertinoTextFormFieldRow(
+            controller: _passwordController,
+            placeholder: 'Password',
+            obscureText: true,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your password';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: CupertinoColors.destructiveRed,
               ),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16),
+          ],
+          CupertinoButton.filled(
+            onPressed: _isLoading || isLoading ? null : _handleSubmit,
+            child: _isLoading || isLoading
+                ? const CupertinoActivityIndicator()
+                : const Text('Login'),
           ),
-          orElse: () => const SizedBox.shrink(),
-        ),
-        const SizedBox(height: 16),
-        AuthTextField(
-          placeholder: 'Email',
-          keyboardType: TextInputType.emailAddress,
-          errorText: _formState.emailError,
-          onChanged: _validateEmail,
-        ),
-        const SizedBox(height: 12),
-        AuthTextField(
-          placeholder: 'Password',
-          obscureText: true,
-          errorText: _formState.passwordError,
-          onChanged: _validatePassword,
-        ),
-        const SizedBox(height: 24),
-        CupertinoButton.filled(
-          onPressed: authState.maybeWhen(
-            loading: () => null,
-            orElse: () => _handleSubmit,
-          ),
-          child: authState.maybeWhen(
-            loading: () => const CupertinoActivityIndicator(),
-            orElse: () => const Text('Login'),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

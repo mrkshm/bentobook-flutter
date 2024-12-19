@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/auth/auth_state.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/database/database.dart';
+import 'package:bentobook/core/repositories/user_repository.dart';
 import 'dart:developer' as dev;
 
 // Navigation state
@@ -16,6 +17,17 @@ class NavigationState {
 
 final navigationProvider = StateNotifierProvider<NavigationController, NavigationState>((ref) {
   return NavigationController(ref);
+});
+
+final databaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase();
+  ref.onDispose(() => db.close());
+  return db;
+});
+
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return UserRepository(db);
 });
 
 class NavigationController extends StateNotifier<NavigationState> {

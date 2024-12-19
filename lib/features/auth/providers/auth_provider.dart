@@ -1,40 +1,31 @@
+import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
 import 'dart:developer' as dev;
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/api_exception.dart';
-import 'package:bentobook/core/api/models/user.dart';
-
-part 'auth_provider.freezed.dart';
-
-@freezed
-class AuthState with _$AuthState {
-  const factory AuthState({
-    @Default(false) bool isLoading,
-    @Default(false) bool isAuthenticated,
-    User? user,
-    String? error,
-    String? token,
-  }) = _AuthState;
-}
+import 'package:bentobook/core/api/models/user.dart' as api;
+import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/auth/auth_state.dart';
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final ApiClient _apiClient;
+  final UserRepository _userRepository;
 
   AuthNotifier({
     required ApiClient apiClient,
+    required UserRepository userRepository,
   }) : _apiClient = apiClient,
-       super(const AuthState());
+       _userRepository = userRepository,
+       super(const AuthState.initial());
 
   Future<bool> login({
     required String email,
     required String password,
   }) async {
     dev.log('AuthNotifier: Starting login');
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-    );
+    dev.log('AuthNotifier: Attempting login for email: $email');
+    
+    state = const AuthState.loading();
 
     try {
       final response = await _apiClient.login(
@@ -43,6 +34,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       
       dev.log('AuthNotifier: Login response received');
+      dev.log('AuthNotifier: Response data: ${response.data?.toJson()}');
       
       if (!response.isSuccess || response.meta?.token == null || response.data == null) {
         dev.log('AuthNotifier: Login failed - response not successful or missing token/data');
@@ -53,94 +45,46 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
 
-      dev.log('AuthNotifier: Login successful, updating state');
-      state = state.copyWith(
-        isLoading: false,
-        isAuthenticated: true,
-        user: response.data,
-        token: response.meta!.token,
-        error: null,
-      );
-      dev.log('AuthNotifier: State updated - isAuthenticated: ${state.isAuthenticated}, hasUser: ${state.user != null}, hasToken: ${state.token != null}');
-      return true;
-    } on ApiException catch (e) {
-      dev.log('AuthNotifier: Login error - ${e.message}');
-      state = state.copyWith(
-        isLoading: false,
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        error: e.message,
-      );
-      return false;
-    }
-  }
+      final userData = response.data!;
+      final token = response.meta!.token!;
 
-  Future<bool> signup({
-    required String email,
-    required String password,
-    String? passwordConfirmation,
-  }) async {
-    dev.log('AuthNotifier: Starting signup');
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-    );
-
-    try {
-      final response = await _apiClient.register(
-        email: email,
-        password: password,
-        passwordConfirmation: passwordConfirmation,
-      );
+      dev.log('AuthNotifier: Login successful, saving user data');
       
-      dev.log('AuthNotifier: Signup response received');
-      
-      if (!response.isSuccess || response.meta?.token == null || response.data == null) {
-        dev.log('AuthNotifier: Signup failed - response not successful or missing token/data');
-        throw ApiException(
-          message: response.errors.isNotEmpty 
-            ? response.errors.first.detail 
-            : 'Signup failed',
+      // Save user data first
+      try {
+        dev.log('AuthNotifier: Starting user data save');
+        await _userRepository.saveUserFromApi(userData);
+        dev.log('AuthNotifier: User data saved');
+        
+        // Then update state to indicate authentication
+        state = AuthState.authenticated(
+          user: userData,
+          token: token,
         );
+        
+        return true;
+      } catch (e) {
+        dev.log('AuthNotifier: Error saving user data', error: e);
+        state = AuthState.error('Failed to save user data: $e');
+        return false;
       }
-
-      dev.log('AuthNotifier: Signup successful, updating state');
-      state = state.copyWith(
-        isLoading: false,
-        isAuthenticated: true,
-        user: response.data,
-        token: response.meta!.token,
-        error: null,
-      );
-      dev.log('AuthNotifier: State updated - isAuthenticated: ${state.isAuthenticated}, hasUser: ${state.user != null}, hasToken: ${state.token != null}');
-      return true;
-    } on ApiException catch (e) {
-      dev.log('AuthNotifier: Signup error - ${e.message}');
-      state = state.copyWith(
-        isLoading: false,
-        isAuthenticated: false,
-        user: null,
-        token: null,
-        error: e.message,
-      );
+    } catch (e) {
+      dev.log('AuthNotifier: Login error', error: e);
+      state = AuthState.error(e.toString());
       return false;
     }
   }
 
-  Future<void> logout() async {
-    dev.log('AuthNotifier: Starting logout');
-    try {
-      await _apiClient.logout();
-    } finally {
-      dev.log('AuthNotifier: Resetting state');
-      state = const AuthState();
-      dev.log('AuthNotifier: State reset - isAuthenticated: ${state.isAuthenticated}');
-    }
+  void logout() {
+    state = const AuthState.unauthenticated();
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final apiClient = ref.watch(apiClientProvider);
-  return AuthNotifier(apiClient: apiClient);
+  final userRepository = ref.watch(userRepositoryProvider);
+  return AuthNotifier(
+    apiClient: apiClient,
+    userRepository: userRepository,
+  );
 });

@@ -1,13 +1,89 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/auth/auth_state.dart';
+import 'package:bentobook/features/auth/providers/auth_provider.dart';
 import 'dart:developer' as dev;
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  String _testResult = '';
+
+  Future<void> _showCurrentUser() async {
+    final userRepository = ref.read(userRepositoryProvider);
+    final authState = ref.read(authProvider);
+    
+    dev.log('DashboardScreen: Current auth state: $authState');
+    
+    String? userEmail = authState.maybeMap(
+      authenticated: (state) => state.user.attributes.email,
+      orElse: () => null,
+    );
+    
+    if (userEmail == null) {
+      setState(() {
+        _testResult = 'No user is logged in';
+      });
+      return;
+    }
+
+    try {
+      final user = await userRepository.getUserByEmail(userEmail);
+      if (user != null) {
+        setState(() {
+          _testResult = 'Current User:\n'
+            '- Email: ${user.email}\n'
+            '- Display Name: ${user.displayName ?? "Not set"}\n'
+            '- Username: ${user.username ?? "Not set"}\n'
+            '- First Name: ${user.firstName ?? "Not set"}\n'
+            '- Last Name: ${user.lastName ?? "Not set"}\n'
+            '- About: ${user.about ?? "Not set"}\n'
+            '- Theme: ${user.preferredTheme}\n'
+            '- Language: ${user.preferredLanguage}';
+        });
+      } else {
+        setState(() {
+          _testResult = 'User not found in database';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _testResult = 'Error: $e';
+      });
+    }
+  }
+
+  Future<void> _showAllUsers() async {
+    final userRepository = ref.read(userRepositoryProvider);
+    try {
+      final users = await userRepository.getAllUsers();
+      setState(() {
+        _testResult = 'Found ${users.length} users:\n' +
+            users.map((user) => '- ${user.displayName ?? user.email} (${user.email})').join('\n');
+      });
+    } catch (e) {
+      setState(() {
+        _testResult = 'Error: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final userEmail = authState.maybeMap(
+      authenticated: (state) => state.user.attributes.email,
+      orElse: () => null,
+    );
+    
+    dev.log('DashboardScreen: Building with userEmail: $userEmail');
+    
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: const Text('BentoBook'),
@@ -21,30 +97,52 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
       child: SafeArea(
-        child: Center(
+        child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Welcome to BentoBook',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
+                const SizedBox(height: 24),
+                Text(
+                  userEmail != null 
+                    ? 'Welcome, $userEmail!'
+                    : 'Welcome to BentoBook!',
+                  style: const TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'You are now logged in!',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    color: CupertinoColors.systemGrey,
-                  ),
                 ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoButton.filled(
+                        onPressed: _showCurrentUser,
+                        child: const Text('Show Current User'),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: CupertinoButton.filled(
+                        onPressed: _showAllUsers,
+                        child: const Text('Show All Users'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_testResult.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _testResult,
+                    style: const TextStyle(
+                      fontFamily: 'Menlo',
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
