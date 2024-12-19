@@ -1,18 +1,24 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/features/auth/providers/auth_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authServiceProvider);
-
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('BentoBook'),
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('BentoBook'),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            ref.read(authProvider.notifier).logout();
+            context.go('/');
+          },
+          child: const Text('Logout'),
+        ),
       ),
       child: SafeArea(
         child: Center(
@@ -22,7 +28,6 @@ class DashboardScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Spacer(),
                 const Text(
                   'Welcome to BentoBook',
                   textAlign: TextAlign.center,
@@ -32,35 +37,14 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                authState.when(
-                  initial: () => const SizedBox.shrink(),
-                  loading: () => const Center(
-                    child: CupertinoActivityIndicator(),
-                  ),
-                  authenticated: (user, _) => Text(
-                    'Logged in as ${user.attributes.email}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      color: CupertinoColors.systemGrey,
-                    ),
-                  ),
-                  unauthenticated: () => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                    child: CupertinoButton.filled(
-                      onPressed: () => context.push('/auth'),
-                      child: const Text('Login / Sign Up'),
-                    ),
-                  ),
-                  error: (message) => Text(
-                    'Error: $message',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed,
-                    ),
+                Text(
+                  'You are now logged in!',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    color: CupertinoColors.systemGrey,
                   ),
                 ),
-                const Spacer(flex: 2),
               ],
             ),
           ),
