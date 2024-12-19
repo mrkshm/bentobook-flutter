@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:developer' as dev;
 import 'auth_state.dart';
 import '../api/api_client.dart';
+import '../api/api_exception.dart';
 
 const _tokenKey = 'auth_token';
 
@@ -11,11 +13,9 @@ class AuthService extends StateNotifier<AuthState> {
 
   AuthService(this._apiClient, this._storage) : super(const AuthState.initial()) {
     _apiClient.onRefreshFailed = () {
-      // When refresh fails, clear storage and set state to unauthenticated
       _storage.delete(key: _tokenKey);
       state = const AuthState.unauthenticated();
     };
-    // Try to restore session on creation
     _restoreSession();
   }
 
@@ -25,17 +25,12 @@ class AuthService extends StateNotifier<AuthState> {
       final token = await _storage.read(key: _tokenKey);
       if (token != null) {
         _apiClient.setToken(token);
-        // Try to refresh the token to verify it's still valid
         final refreshed = await _apiClient.refreshToken();
         if (!refreshed) {
-          // If refresh fails, clear token and stay logged out
           await _storage.delete(key: _tokenKey);
           state = const AuthState.unauthenticated();
         } else {
-          state = AuthState.authenticated(
-            user: await _apiClient.getMe(),
-            token: token,
-          );
+          state = const AuthState.unauthenticated();
         }
       } else {
         state = const AuthState.unauthenticated();
@@ -45,11 +40,18 @@ class AuthService extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> login(String email, String password) async {
+  Future<void> login({required String email, required String password}) async {
+    dev.log('Starting login for email: $email');
+    state = const AuthState.loading();
     try {
-      final response = await _apiClient.login(email, password);
+      final response = await _apiClient.login(
+        email: email,
+        password: password,
+      );
       
-      if (response.isSuccess && response.data != null && response.meta?.token != null) {
+      if (response.isSuccess && 
+          response.meta?.token != null && 
+          response.data != null) {
         await _storage.write(key: _tokenKey, value: response.meta!.token);
         state = AuthState.authenticated(
           user: response.data!,
@@ -58,39 +60,47 @@ class AuthService extends StateNotifier<AuthState> {
       } else {
         state = const AuthState.error('Login failed');
       }
-    } catch (e) {
-      state = AuthState.error(e.toString());
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
+    }
+  }
+
+  Future<void> signup({
+    required String email,
+    required String password,
+    String? passwordConfirmation,
+  }) async {
+    state = const AuthState.loading();
+    try {
+      final response = await _apiClient.register(
+        email: email,
+        password: password,
+        passwordConfirmation: passwordConfirmation,
+      );
+      
+      if (response.isSuccess && 
+          response.meta?.token != null && 
+          response.data != null) {
+        await _storage.write(key: _tokenKey, value: response.meta!.token);
+        state = AuthState.authenticated(
+          user: response.data!,
+          token: response.meta!.token!,
+        );
+      } else {
+        state = const AuthState.error('Signup failed');
+      }
+    } on ApiException catch (e) {
+      state = AuthState.error(e.message);
     }
   }
 
   Future<void> logout() async {
-    state.when(
-      initial: () async {
-        await _storage.delete(key: _tokenKey);
-        state = const AuthState.unauthenticated();
-      },
-      authenticated: (user, token) async {
-        try {
-          await _apiClient.logout(token);
-          await _storage.delete(key: _tokenKey);
-          state = const AuthState.unauthenticated();
-        } catch (e) {
-          state = AuthState.error(e.toString());
-        }
-      },
-      unauthenticated: () async {
-        await _storage.delete(key: _tokenKey);
-        state = const AuthState.unauthenticated();
-      },
-      error: (_) async {
-        await _storage.delete(key: _tokenKey);
-        state = const AuthState.unauthenticated();
-      },
-      loading: () async {
-        await _storage.delete(key: _tokenKey);
-        state = const AuthState.unauthenticated();
-      },
-    );
+    try {
+      await _apiClient.logout();
+    } finally {
+      await _storage.delete(key: _tokenKey);
+      state = const AuthState.unauthenticated();
+    }
   }
 }
 

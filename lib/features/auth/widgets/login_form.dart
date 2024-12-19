@@ -1,11 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:bentobook/features/auth/models/auth_form_state.dart';
-import 'package:bentobook/features/auth/providers/auth_provider.dart';
+import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/features/auth/validators.dart';
 import 'package:bentobook/features/auth/widgets/shared/auth_text_field.dart';
+import 'dart:developer' as dev;
+import 'package:bentobook/core/shared/providers.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
   const LoginForm({super.key});
@@ -48,42 +49,70 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   }
 
   Future<void> _handleSubmit() async {
+    dev.log('LoginForm: Handling submit');
     if (_formState.isValid) {
-      final success = await ref.read(authProvider.notifier).login(
-        email: _formState.email,
-        password: _formState.password,
-      );
+      dev.log('LoginForm: Form is valid, attempting login');
       
-      if (mounted && success) {
-        context.go('/dashboard');
+      try {
+        // Start transition to dashboard and keep it transitioning until we're done
+        ref.read(navigationProvider.notifier).startTransition('/dashboard');
+        
+        // Do login
+        await ref.read(authServiceProvider.notifier).login(
+          email: _formState.email,
+          password: _formState.password,
+        );
+        
+        // Check auth state
+        final authState = ref.read(authServiceProvider);
+        
+        // Only end transition if login was successful
+        if (mounted && authState.maybeWhen(
+          authenticated: (_, __) => true,
+          orElse: () => false,
+        )) {
+          // Wait a bit for auth state to propagate
+          await Future.delayed(const Duration(milliseconds: 100));
+          ref.read(navigationProvider.notifier).endTransition();
+        }
+      } catch (e) {
+        dev.log('LoginForm: Login error - $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())),
+          );
+        }
       }
+    } else {
+      dev.log('LoginForm: Form is invalid');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(authServiceProvider);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (authState.error != null) ...[
-          Container(
+        authState.maybeWhen(
+          error: (message) => Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: theme.colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              authState.error!,
+              message,
               style: TextStyle(
                 color: theme.colorScheme.onErrorContainer,
               ),
             ),
           ),
-          const SizedBox(height: 16),
-        ],
+          orElse: () => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 16),
         AuthTextField(
           placeholder: 'Email',
           keyboardType: TextInputType.emailAddress,
@@ -99,19 +128,14 @@ class _LoginFormState extends ConsumerState<LoginForm> {
         ),
         const SizedBox(height: 24),
         CupertinoButton.filled(
-          onPressed: _formState.isValid && !authState.isLoading 
-            ? _handleSubmit 
-            : null,
-          child: authState.isLoading
-            ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-            : Text(
-                'Login',
-                style: TextStyle(
-                  color: _formState.isValid 
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onPrimary.withOpacity(0.7),
-                ),
-              ),
+          onPressed: authState.maybeWhen(
+            loading: () => null,
+            orElse: () => _handleSubmit,
+          ),
+          child: authState.maybeWhen(
+            loading: () => const CupertinoActivityIndicator(),
+            orElse: () => const Text('Login'),
+          ),
         ),
       ],
     );

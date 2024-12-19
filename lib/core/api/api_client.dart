@@ -48,10 +48,9 @@ class ApiClient {
               if (refreshed) {
                 // Retry the original request
                 return handler.resolve(await _dio.fetch(error.requestOptions));
-              } else {
-                onRefreshFailed?.call();
               }
             } catch (e) {
+              // Token refresh failed
               onRefreshFailed?.call();
             }
           }
@@ -101,7 +100,11 @@ class ApiClient {
     }
   }
 
-  Future<ApiResponse<User>> login(String email, String password) async {
+  // Auth endpoints
+  Future<ApiResponse<User>> login({
+    required String email,
+    required String password,
+  }) async {
     try {
       final response = await _dio.post(
         ApiEndpoints.login,
@@ -109,22 +112,64 @@ class ApiClient {
           'user': {
             'email': email,
             'password': password,
-          }
+          },
         },
       );
-      
+
       final apiResponse = ApiResponse<User>.fromJson(
         response.data,
         (json) => User.fromJson(json as Map<String, dynamic>),
       );
 
       if (apiResponse.meta?.token != null) {
-        setToken(apiResponse.meta!.token);
+        _token = apiResponse.meta?.token;
       }
-
       return apiResponse;
     } on DioException catch (e) {
       throw _handleError(e);
+    }
+  }
+
+  Future<ApiResponse<User>> register({
+    required String email,
+    required String password,
+    String? passwordConfirmation,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.register,
+        data: {
+          'user': {
+            'email': email,
+            'password': password,
+            'password_confirmation': passwordConfirmation ?? password,
+          },
+        },
+      );
+
+      final apiResponse = ApiResponse<User>.fromJson(
+        response.data,
+        (json) => User.fromJson(json as Map<String, dynamic>),
+      );
+
+      if (apiResponse.meta?.token != null) {
+        _token = apiResponse.meta?.token;
+      }
+      return apiResponse;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> logout() async {
+    if (_token == null) return;
+
+    try {
+      await _dio.delete(ApiEndpoints.logout);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    } finally {
+      _token = null;
     }
   }
 
@@ -137,12 +182,12 @@ class ApiClient {
       );
 
       if (apiResponse.meta?.token != null) {
-        setToken(apiResponse.meta!.token);
+        _token = apiResponse.meta?.token;
         return true;
       }
       return false;
-    } catch (e) {
-      return false;
+    } on DioException catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -163,33 +208,8 @@ class ApiClient {
     }
   }
 
-  Future<void> logout(String token) async {
-    try {
-      await _dio.delete(
-        ApiEndpoints.logout,
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ),
-      );
-    } catch (e) {
-      throw Exception('Failed to logout: $e');
-    }
-  }
-
   ApiException _handleError(DioException error) {
-    if (error.response != null) {
-      return ApiException(
-        message: error.response?.data?['message'] ?? 'Unknown error occurred',
-        statusCode: error.response?.statusCode,
-        error: error,
-      );
-    }
-    return ApiException(
-      message: error.message ?? 'Network error occurred',
-      error: error,
-    );
+    return ApiException.fromDioError(error);
   }
 }
 

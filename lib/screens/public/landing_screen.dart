@@ -1,11 +1,13 @@
 import 'package:flutter/cupertino.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bentobook/core/shared/providers.dart';
+import 'dart:developer' as dev;
 
-class LandingScreen extends StatelessWidget {
+class LandingScreen extends ConsumerWidget {
   const LandingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
         middle: Text('BentoBook'),
@@ -44,7 +46,10 @@ class LandingScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32.0),
                   child: CupertinoButton.filled(
-                    onPressed: () => context.push('/auth'),
+                    onPressed: () {
+                      dev.log('Landing: Going to auth screen');
+                      ref.read(navigationProvider.notifier).startTransition('/auth');
+                    },
                     child: const Text('Login / Sign Up'),
                   ),
                 ),

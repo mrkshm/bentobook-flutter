@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:bentobook/features/auth/providers/auth_provider.dart';
+import 'package:bentobook/core/shared/providers.dart';
+import 'dart:developer' as dev;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -14,8 +14,8 @@ class DashboardScreen extends ConsumerWidget {
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () {
-            ref.read(authProvider.notifier).logout();
-            context.go('/');
+            dev.log('Dashboard: Starting logout');
+            ref.read(navigationProvider.notifier).logout();
           },
           child: const Text('Logout'),
         ),
