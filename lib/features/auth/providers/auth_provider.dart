@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:developer' as dev;
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/api_exception.dart';
-import 'package:bentobook/core/api/models/user.dart' as api;
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_state.dart';
 

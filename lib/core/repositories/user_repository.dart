@@ -25,9 +25,13 @@ class UserRepository {
 
       // Convert avatar URLs to correct type
       Map<String, String>? avatarUrls;
-      if (profile?.avatarUrls != null) {
-        avatarUrls = profile!.avatarUrls.toJson().map((key, value) => 
-          MapEntry(key, value.toString()));
+      final userAvatarUrls = profile?.avatarUrls;
+      if (userAvatarUrls != null) {
+        avatarUrls = {
+          if (userAvatarUrls.small != null) 'small': userAvatarUrls.small!,
+          if (userAvatarUrls.medium != null) 'medium': userAvatarUrls.medium!,
+          if (userAvatarUrls.large != null) 'large': userAvatarUrls.large!,
+        };
       }
 
       // First try to get existing user

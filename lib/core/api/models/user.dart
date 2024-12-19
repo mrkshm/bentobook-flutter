@@ -1,7 +1,4 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:flutter/foundation.dart';
-import 'json_converters.dart';
-import 'profile.dart';
 
 part 'user.freezed.dart';
 part 'user.g.dart';
@@ -20,14 +17,39 @@ class User with _$User {
 @freezed
 class UserAttributes with _$UserAttributes {
   const factory UserAttributes({
-    required int id,
     required String email,
-    @JsonKey(name: 'created_at') 
-    @UtcDateTimeConverter()
-    required DateTime createdAt,
-    Profile? profile,
+    UserProfile? profile,
   }) = _UserAttributes;
 
   factory UserAttributes.fromJson(Map<String, dynamic> json) =>
       _$UserAttributesFromJson(json);
+}
+
+@freezed
+class UserProfile with _$UserProfile {
+  const factory UserProfile({
+    String? username,
+    String? displayName,
+    String? firstName,
+    String? lastName,
+    String? about,
+    String? preferredTheme,
+    String? preferredLanguage,
+    AvatarUrls? avatarUrls,
+  }) = _UserProfile;
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) =>
+      _$UserProfileFromJson(json);
+}
+
+@freezed
+class AvatarUrls with _$AvatarUrls {
+  const factory AvatarUrls({
+    String? small,
+    String? medium,
+    String? large,
+  }) = _AvatarUrls;
+
+  factory AvatarUrls.fromJson(Map<String, dynamic> json) =>
+      _$AvatarUrlsFromJson(json);
 }

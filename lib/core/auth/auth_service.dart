@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/api_exception.dart';
 import '../repositories/user_repository.dart';
 import '../shared/providers.dart';
+import '../database/extensions.dart';
 
 const _tokenKey = 'auth_token';
 
@@ -28,17 +29,40 @@ class AuthService extends StateNotifier<AuthState> {
       final token = await _storage.read(key: _tokenKey);
       if (token != null) {
         _apiClient.setToken(token);
-        final refreshed = await _apiClient.refreshToken();
-        if (!refreshed) {
-          await _storage.delete(key: _tokenKey);
-          state = const AuthState.unauthenticated();
-        } else {
-          state = const AuthState.unauthenticated();
+        
+        // Get user from local DB first
+        final userEmail = await _storage.read(key: 'user_email');
+        if (userEmail != null) {
+          final userData = await _userRepository.getUserByEmail(userEmail);
+          if (userData != null) {
+            // Restore auth state from local data
+            state = AuthState.authenticated(
+              user: userData.toApiUser(), // Convert DB user to API user
+              token: token,
+            );
+            
+            // Try to refresh token only if online
+            try {
+              final refreshed = await _apiClient.refreshToken();
+              if (!refreshed) {
+                // Token invalid - clear auth
+                await _storage.delete(key: _tokenKey);
+                await _storage.delete(key: 'user_email');
+                state = const AuthState.unauthenticated();
+              }
+            } catch (e) {
+              // Offline or other error - keep existing auth state
+              dev.log('Token refresh failed (possibly offline): $e');
+            }
+            return;
+          }
         }
-      } else {
-        state = const AuthState.unauthenticated();
       }
+      
+      // No valid local data
+      state = const AuthState.unauthenticated();
     } catch (e) {
+      dev.log('Error restoring session: $e');
       state = const AuthState.unauthenticated();
     }
   }
@@ -57,29 +81,30 @@ class AuthService extends StateNotifier<AuthState> {
           message: response.errors.isNotEmpty 
             ? response.errors.first.detail 
             : 'Login failed',
-        );
-      }
-
-      // Save token
-      await _storage.write(key: _tokenKey, value: response.meta!.token);
-      _apiClient.setToken(response.meta!.token!);
-
-      // Save user data
-      dev.log('AuthService: Saving user data');
-      await _userRepository.saveUserFromApi(response.data!);
-      dev.log('AuthService: User data saved');
-
-      // Update state
-      state = AuthState.authenticated(
-        user: response.data!,
-        token: response.meta!.token!,
       );
-    } catch (e) {
-      dev.log('Login error: $e');
-      state = AuthState.error(e.toString());
-      rethrow;
     }
+
+    // Save token and email
+    await _storage.write(key: _tokenKey, value: response.meta!.token);
+    await _storage.write(key: 'user_email', value: email);
+    _apiClient.setToken(response.meta!.token!);
+
+    // Save user data
+    dev.log('AuthService: Saving user data');
+    await _userRepository.saveUserFromApi(response.data!);
+    dev.log('AuthService: User data saved');
+
+    // Update state
+    state = AuthState.authenticated(
+      user: response.data!,
+      token: response.meta!.token!,
+    );
+  } catch (e) {
+    dev.log('Login error: $e');
+    state = AuthState.error(e.toString());
+    rethrow;
   }
+}
 
   Future<void> logout() async {
     await _storage.delete(key: _tokenKey);
