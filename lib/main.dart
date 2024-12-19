@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/router.dart';
-import 'package:bentobook/utils/theme.dart';
-import 'package:bentobook/providers/theme_provider.dart';
+import 'package:bentobook/theme/theme_provider.dart';
+import 'package:bentobook/theme/theme.dart';
 
 void main() {
   runApp(
@@ -17,13 +17,14 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLightTheme = ref.watch(themeProvider);
+    final themeMode = ref.watch(themeProvider);
+    final colorScheme = ref.watch(colorSchemeProvider);
     
     return MaterialApp.router(
       title: 'BentoBook',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: isLightTheme ? ThemeMode.light : ThemeMode.dark,
+      theme: AppTheme.light(scheme: colorScheme),
+      darkTheme: AppTheme.dark(scheme: colorScheme),
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

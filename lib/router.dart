@@ -1,13 +1,23 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
-import 'package:bentobook/screens/home_screen.dart';
+import 'package:bentobook/screens/app/dashboard_screen.dart';
+import 'package:bentobook/screens/public/auth_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
+  debugLogDiagnostics: true,
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const HomeScreen(),
+      pageBuilder: (context, state) => const CupertinoPage(
+        child: DashboardScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/auth',
+      pageBuilder: (context, state) => const CupertinoPage(
+        child: AuthScreen(),
+      ),
     ),
   ],
 );
