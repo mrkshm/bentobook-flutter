@@ -30,6 +30,45 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository(db);
 });
 
+// Auth initialization state
+enum AuthInitState {
+  notStarted,
+  inProgress,
+  completed,
+  error,
+}
+
+final authInitStateProvider = StateProvider<AuthInitState>((ref) => AuthInitState.notStarted);
+
+// Auth initialization controller
+final authInitControllerProvider = Provider((ref) {
+  return AuthInitController(ref);
+});
+
+class AuthInitController {
+  final Ref _ref;
+  
+  AuthInitController(this._ref);
+
+  Future<void> initialize() async {
+    if (_ref.read(authInitStateProvider) != AuthInitState.notStarted) {
+      return;
+    }
+
+    try {
+      _ref.read(authInitStateProvider.notifier).state = AuthInitState.inProgress;
+      
+      final authService = _ref.read(authServiceProvider.notifier);
+      await authService.initializeAuth();
+      
+      _ref.read(authInitStateProvider.notifier).state = AuthInitState.completed;
+    } catch (e) {
+      dev.log('AuthInit: Error during initialization: $e');
+      _ref.read(authInitStateProvider.notifier).state = AuthInitState.error;
+    }
+  }
+}
+
 class NavigationController extends StateNotifier<NavigationState> {
   final Ref _ref;
   
@@ -61,7 +100,7 @@ class NavigationController extends StateNotifier<NavigationState> {
   Future<void> logout() async {
     dev.log('Navigation: Starting logout flow');
     // Start transition before anything else
-    state = NavigationState(targetLocation: '/', isTransitioning: true);
+    state = NavigationState(targetLocation: '/auth', isTransitioning: true);
     
     try {
       // Do logout
@@ -71,44 +110,17 @@ class NavigationController extends StateNotifier<NavigationState> {
       await Future.delayed(const Duration(milliseconds: 100));
       
       // End transition
-      state = NavigationState(targetLocation: '/', isTransitioning: false);
+      state = NavigationState(targetLocation: '/auth', isTransitioning: false);
     } catch (e) {
       dev.log('Navigation: Logout error - $e');
       // End transition even on error
-      state = NavigationState(targetLocation: '/', isTransitioning: false);
+      state = NavigationState(targetLocation: '/auth', isTransitioning: false);
     }
   }
 
   void startTransition(String target) {
-    // Check current auth state
-    final authState = _ref.read(authServiceProvider);
-    
-    authState.maybeWhen(
-      error: (_) {
-        // If in error state, always go to auth
-        dev.log('Navigation: Auth error, redirecting to auth');
-        state = NavigationState(targetLocation: '/auth', isTransitioning: false);
-      },
-      authenticated: (_, __) {
-        // If authenticated and trying to go to auth/landing, redirect to dashboard
-        if (target == '/auth' || target == '/') {
-          dev.log('Navigation: Authenticated, redirecting to dashboard');
-          state = NavigationState(targetLocation: '/dashboard', isTransitioning: true);
-        } else {
-          dev.log('Navigation: Starting transition to $target');
-          state = NavigationState(targetLocation: target, isTransitioning: true);
-        }
-      },
-      unauthenticated: () {
-        // Allow navigation to any public route
-        dev.log('Navigation: Starting transition to $target');
-        state = NavigationState(targetLocation: target, isTransitioning: true);
-      },
-      orElse: () {
-        dev.log('Navigation: Starting transition to $target');
-        state = NavigationState(targetLocation: target, isTransitioning: true);
-      },
-    );
+    dev.log('Navigation: Starting transition to $target');
+    state = NavigationState(targetLocation: target, isTransitioning: true);
   }
 
   void endTransition() {

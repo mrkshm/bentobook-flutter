@@ -1,23 +1,34 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/features/auth/widgets/login_form.dart';
 import 'package:bentobook/features/auth/widgets/signup_form.dart';
+import 'dart:developer' as dev;
 
-class AuthScreen extends StatefulWidget {
+class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   int _selectedSegment = 0;
 
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Login / Sign Up'),
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Login / Sign Up'),
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            dev.log('Auth: Going back to landing');
+            ref.read(navigationProvider.notifier).startTransition('/');
+          },
+          child: const Icon(CupertinoIcons.back),
+        ),
       ),
       child: SafeArea(
         child: Padding(

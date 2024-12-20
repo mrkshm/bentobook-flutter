@@ -12,9 +12,9 @@ class UserRepository {
   Future<void> saveUserFromApi(api.User apiUser) async {
     try {
       final profile = apiUser.attributes.profile;
+      final email = apiUser.attributes.email;
       dev.log('UserRepository: Starting to save API user data');
-      dev.log('UserRepository: User ID: ${apiUser.id}');
-      dev.log('UserRepository: Email: ${apiUser.attributes.email}');
+      dev.log('UserRepository: Email: $email');
       if (profile != null) {
         dev.log('UserRepository: Profile data available');
         dev.log('UserRepository: Username: ${profile.username}');
@@ -35,17 +35,17 @@ class UserRepository {
       }
 
       // First try to get existing user
-      var existingUser = await _db.getUserByEmail(apiUser.attributes.email);
+      var existingUser = await _db.getUserByEmail(email);
       if (existingUser != null) {
         dev.log('UserRepository: Updating existing user');
         await _db.updateUser(User(
-          id: existingUser.id,
-          email: existingUser.email,
+          id: existingUser.id,  // Keep local ID
+          email: email,
           username: profile?.username,
           displayName: profile?.displayName,
           firstName: profile?.firstName,
           lastName: profile?.lastName,
-          about: profile?.about,
+          about: profile?.about ?? '',
           preferredTheme: profile?.preferredTheme ?? 'light',
           preferredLanguage: profile?.preferredLanguage ?? 'en',
           avatarUrls: avatarUrls,
@@ -57,24 +57,24 @@ class UserRepository {
       } else {
         dev.log('UserRepository: Creating new user');
         final user = await _db.createUser(
-          email: apiUser.attributes.email,
+          email: email,
           username: profile?.username,
           displayName: profile?.displayName,
           firstName: profile?.firstName,
           lastName: profile?.lastName,
-          about: profile?.about,
+          about: profile?.about ?? '',
           preferredTheme: profile?.preferredTheme ?? 'light',
           preferredLanguage: profile?.preferredLanguage ?? 'en',
           avatarUrls: avatarUrls,
         );
-        dev.log('UserRepository: Created new user: ${user.toString()}');
+        dev.log('UserRepository: Created new user: $user');
       }
 
       // Verify the save
-      final savedUser = await _db.getUserByEmail(apiUser.attributes.email);
+      final savedUser = await _db.getUserByEmail(email);
       if (savedUser != null) {
         dev.log('UserRepository: User save verified');
-        dev.log('UserRepository: Saved user: ${savedUser.toString()}');
+        dev.log('UserRepository: Saved user: $savedUser');
       } else {
         dev.log('UserRepository: Failed to verify user save');
         throw Exception('Failed to verify user save');

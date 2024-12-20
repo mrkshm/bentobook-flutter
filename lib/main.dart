@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:bentobook/router.dart';
+import 'package:bentobook/core/shared/providers.dart';
 
 void main() {
   runApp(
@@ -12,11 +13,23 @@ void main() {
   );
 }
 
-class BentoBookApp extends ConsumerWidget {
+class BentoBookApp extends ConsumerStatefulWidget {
   const BentoBookApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BentoBookApp> createState() => _BentoBookAppState();
+}
+
+class _BentoBookAppState extends ConsumerState<BentoBookApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize auth on app start
+    Future.microtask(() => ref.read(authInitControllerProvider).initialize());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

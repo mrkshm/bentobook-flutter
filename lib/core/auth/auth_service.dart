@@ -15,100 +15,170 @@ class AuthService extends StateNotifier<AuthState> {
   final FlutterSecureStorage _storage;
   final UserRepository _userRepository;
 
-  AuthService(this._apiClient, this._storage, this._userRepository) : super(const AuthState.initial()) {
+  AuthService(this._apiClient, this._storage, this._userRepository) 
+      : super(const AuthState.initial()) {
     _apiClient.onRefreshFailed = () {
       _storage.delete(key: _tokenKey);
       state = const AuthState.unauthenticated();
     };
-    _restoreSession();
   }
 
-  Future<void> _restoreSession() async {
+  // Public initialization method
+  Future<void> initializeAuth() async {
+    if (state.maybeMap(
+      initial: (_) => false,
+      orElse: () => true,
+    )) {
+      dev.log('AuthService: Already initialized');
+      return; // Already initialized
+    }
+
     state = const AuthState.loading();
+    dev.log('AuthService: Starting initialization');
+    
     try {
       final token = await _storage.read(key: _tokenKey);
-      if (token != null) {
-        _apiClient.setToken(token);
-        
-        // Get user from local DB first
-        final userEmail = await _storage.read(key: 'user_email');
-        if (userEmail != null) {
-          final userData = await _userRepository.getUserByEmail(userEmail);
-          if (userData != null) {
-            // Restore auth state from local data
-            state = AuthState.authenticated(
-              user: userData.toApiUser(), // Convert DB user to API user
-              token: token,
-            );
-            
-            // Try to refresh token only if online
-            try {
-              final refreshed = await _apiClient.refreshToken();
-              if (!refreshed) {
-                // Token invalid - clear auth
-                await _storage.delete(key: _tokenKey);
-                await _storage.delete(key: 'user_email');
-                state = const AuthState.unauthenticated();
-              }
-            } catch (e) {
-              // Offline or other error - keep existing auth state
-              dev.log('Token refresh failed (possibly offline): $e');
-            }
-            return;
-          }
-        }
-      }
+      final userEmail = await _storage.read(key: 'user_email');
       
-      // No valid local data
-      state = const AuthState.unauthenticated();
+      dev.log('AuthService: Token: ${token != null}, Email: ${userEmail != null}');
+      
+      if (token == null || userEmail == null) {
+        dev.log('AuthService: No stored credentials');
+        // Clean up any partial credentials
+        await _storage.delete(key: _tokenKey);
+        await _storage.delete(key: 'user_email');
+        state = const AuthState.unauthenticated();
+        return;
+      }
+
+      // Set token for API client
+      _apiClient.setToken(token);
+      
+      // Try to get user from local DB
+      final userData = await _userRepository.getUserByEmail(userEmail);
+      dev.log('AuthService: Local user data found: ${userData != null}');
+      
+      if (userData == null) {
+        dev.log('AuthService: No local user data found');
+        await _clearCredentials();
+        state = const AuthState.unauthenticated();
+        return;
+      }
+
+      // Restore auth state from local data
+      dev.log('AuthService: Restoring auth state from local data');
+      state = AuthState.authenticated(
+        user: userData.toApiUser(),
+        token: token,
+      );
+      
+      // Try to refresh token if online
+      try {
+        final refreshed = await _apiClient.refreshToken();
+        dev.log('AuthService: Token refresh result: $refreshed');
+        if (!refreshed) {
+          dev.log('AuthService: Token refresh failed');
+          await _clearCredentials();
+          state = const AuthState.unauthenticated();
+        }
+      } catch (e) {
+        // Offline or other error - keep existing auth state
+        dev.log('AuthService: Token refresh failed (possibly offline): $e');
+      }
     } catch (e) {
-      dev.log('Error restoring session: $e');
-      state = const AuthState.unauthenticated();
+      dev.log('AuthService: Error during initialization: $e');
+      state = AuthState.error(e.toString());
     }
   }
 
+  // Helper to clear credentials consistently
+  Future<void> _clearCredentials() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: 'user_email');
+    _apiClient.setToken(null);
+  }
+
   Future<void> login({required String email, required String password}) async {
-    dev.log('Starting login for email: $email');
     state = const AuthState.loading();
+    dev.log('AuthService: Starting login');
+
     try {
       final response = await _apiClient.login(
         email: email,
         password: password,
       );
-      
+
       if (!response.isSuccess || response.meta?.token == null || response.data == null) {
         throw ApiException(
           message: response.errors.isNotEmpty 
             ? response.errors.first.detail 
             : 'Login failed',
+        );
+      }
+
+      final userData = response.data!;
+      final token = response.meta!.token!;
+
+      // Save credentials
+      await _storage.write(key: _tokenKey, value: token);
+      await _storage.write(key: 'user_email', value: email);
+      _apiClient.setToken(token);
+
+      // Save user data to local DB
+      await _userRepository.saveUserFromApi(userData);
+
+      state = AuthState.authenticated(
+        user: userData,
+        token: token,
       );
+    } catch (e) {
+      dev.log('AuthService: Login error', error: e);
+      state = AuthState.error(e.toString());
+      rethrow;
     }
-
-    // Save token and email
-    await _storage.write(key: _tokenKey, value: response.meta!.token);
-    await _storage.write(key: 'user_email', value: email);
-    _apiClient.setToken(response.meta!.token!);
-
-    // Save user data
-    dev.log('AuthService: Saving user data');
-    await _userRepository.saveUserFromApi(response.data!);
-    dev.log('AuthService: User data saved');
-
-    // Update state
-    state = AuthState.authenticated(
-      user: response.data!,
-      token: response.meta!.token!,
-    );
-  } catch (e) {
-    dev.log('Login error: $e');
-    state = AuthState.error(e.toString());
-    rethrow;
   }
-}
+
+  Future<void> offlineLogin({required String email, required String password}) async {
+    state = const AuthState.loading();
+    dev.log('AuthService: Starting offline login');
+
+    try {
+      // Check if we have stored credentials for this email
+      final storedEmail = await _storage.read(key: 'user_email');
+      final storedToken = await _storage.read(key: _tokenKey);
+      
+      if (storedEmail != email) {
+        throw ApiException(message: 'Email not found in offline storage');
+      }
+
+      if (storedToken == null) {
+        throw ApiException(message: 'No stored credentials found');
+      }
+
+      // Get user from local DB
+      final userData = await _userRepository.getUserByEmail(email);
+      if (userData == null) {
+        throw ApiException(message: 'User data not found in local database');
+      }
+
+      // Set token for future API calls
+      _apiClient.setToken(storedToken);
+
+      state = AuthState.authenticated(
+        user: userData.toApiUser(),
+        token: storedToken,
+      );
+
+      dev.log('AuthService: Offline login successful');
+    } catch (e) {
+      dev.log('AuthService: Offline login error', error: e);
+      state = AuthState.error(e.toString());
+      rethrow;
+    }
+  }
 
   Future<void> logout() async {
-    await _storage.delete(key: _tokenKey);
-    _apiClient.setToken(null);
+    await _clearCredentials();
     state = const AuthState.unauthenticated();
   }
 }

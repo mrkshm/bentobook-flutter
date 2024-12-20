@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/auth/auth_state.dart';
-import 'package:bentobook/features/auth/providers/auth_provider.dart';
 import 'dart:developer' as dev;
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -17,16 +17,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Future<void> _showCurrentUser() async {
     final userRepository = ref.read(userRepositoryProvider);
-    final authState = ref.read(authProvider);
+    final authState = ref.read(authServiceProvider);
     
     dev.log('DashboardScreen: Current auth state: $authState');
     
-    String? userEmail = authState.maybeMap(
-      authenticated: (state) => state.user.attributes.email,
+    final user = authState.maybeMap(
+      authenticated: (state) => state.user,
       orElse: () => null,
     );
     
-    if (userEmail == null) {
+    if (user == null) {
       setState(() {
         _testResult = 'No user is logged in';
       });
@@ -34,27 +34,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     try {
-      final user = await userRepository.getUserByEmail(userEmail);
-      if (user != null) {
+      dev.log('DashboardScreen: Looking up user with email: ${user.attributes.email}');
+      final userFromDatabase = await userRepository.getUserByEmail(user.attributes.email);
+      dev.log('DashboardScreen: Database lookup result: $userFromDatabase');
+      
+      if (userFromDatabase != null) {
         setState(() {
           _testResult = 'Current User:\n'
-            '- Email: ${user.email}\n'
-            '- Display Name: ${user.displayName ?? "Not set"}\n'
-            '- Username: ${user.username ?? "Not set"}\n'
-            '- First Name: ${user.firstName ?? "Not set"}\n'
-            '- Last Name: ${user.lastName ?? "Not set"}\n'
-            '- About: ${user.about ?? "Not set"}\n'
-            '- Theme: ${user.preferredTheme}\n'
-            '- Language: ${user.preferredLanguage}';
+            '- Email: ${userFromDatabase.email}\n'
+            '- Display Name: ${userFromDatabase.displayName ?? "Not set"}\n'
+            '- Username: ${userFromDatabase.username ?? "Not set"}\n'
+            '- First Name: ${userFromDatabase.firstName ?? "Not set"}\n'
+            '- Last Name: ${userFromDatabase.lastName ?? "Not set"}\n'
+            '- About: ${userFromDatabase.about ?? "Not set"}\n'
+            '- Theme: ${userFromDatabase.preferredTheme}\n'
+            '- Language: ${userFromDatabase.preferredLanguage}';
         });
       } else {
         setState(() {
-          _testResult = 'User not found in database';
+          _testResult = 'User not found in local database';
         });
       }
     } catch (e) {
+      dev.log('DashboardScreen: Error getting user data', error: e);
       setState(() {
-        _testResult = 'Error: $e';
+        _testResult = 'Error getting user data: $e';
       });
     }
   }
@@ -74,26 +78,45 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
+  void _handleLogout() async {
+    dev.log('DashboardScreen: Logging out');
+    await ref.read(navigationProvider.notifier).logout();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final userEmail = authState.maybeMap(
-      authenticated: (state) => state.user.attributes.email,
+    final authState = ref.watch(authServiceProvider);
+    final user = authState.maybeMap(
+      authenticated: (state) => state.user,
       orElse: () => null,
     );
-    
-    dev.log('DashboardScreen: Building with userEmail: $userEmail');
+
+    if (user == null) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
+
+    dev.log('DashboardScreen: Building with user: ${user.attributes.email}');
     
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('BentoBook'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            dev.log('Dashboard: Starting logout');
-            ref.read(navigationProvider.notifier).logout();
-          },
-          child: const Text('Logout'),
+        middle: const Text('Dashboard'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () {
+                dev.log('Dashboard: Going to profile');
+                ref.read(navigationProvider.notifier).startTransition('/profile');
+              },
+              child: const Icon(CupertinoIcons.person_circle),
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _handleLogout,
+              child: const Text('Logout'),
+            ),
+          ],
         ),
       ),
       child: SafeArea(
@@ -106,9 +129,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 const SizedBox(height: 24),
                 Text(
-                  userEmail != null 
-                    ? 'Welcome, $userEmail!'
-                    : 'Welcome to BentoBook!',
+                  'Welcome, ${user.attributes.email}!',
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,

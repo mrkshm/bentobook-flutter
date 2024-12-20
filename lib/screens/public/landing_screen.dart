@@ -53,6 +53,17 @@ class LandingScreen extends ConsumerWidget {
                     child: const Text('Login / Sign Up'),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: CupertinoButton(
+                    onPressed: () {
+                      dev.log('Landing: Going to auth screen');
+                      ref.read(navigationProvider.notifier).startTransition('/auth');
+                    },
+                    child: const Text('Learn More'),
+                  ),
+                ),
                 const Spacer(flex: 2),
               ],
             ),
