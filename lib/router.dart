@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:page_transition/page_transition.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/screens/app/dashboard_screen.dart';
 import 'package:bentobook/screens/public/auth_screen.dart';
@@ -17,8 +18,8 @@ final routerRedirectEnabledProvider = StateProvider<bool>((ref) => true);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
+  final navState = ref.watch(navigationProvider);  // Watch at provider level
   final authInitState = ref.watch(authInitStateProvider);
-  final navState = ref.watch(navigationProvider);
   
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -27,12 +28,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       dev.log('Router: Checking redirect - path: ${state.matchedLocation}');
       dev.log('Router: Auth init state: $authInitState');
       dev.log('Router: Auth state: $authState');
-      dev.log('Router: Navigation state - target: ${navState.targetLocation}, transitioning: ${navState.isTransitioning}');
+      
+      // Get navigation state
+      final navStateFresh = ref.read(navigationProvider);  // Fresh read in redirect
+      dev.log('Router: Navigation state - target: ${navStateFresh.targetLocation}, transitioning: ${navStateFresh.isTransitioning}');
       
       // If we're transitioning, go to target location
-      if (navState.isTransitioning && state.matchedLocation != navState.targetLocation) {
-        dev.log('Router: Following navigation transition to ${navState.targetLocation}');
-        return navState.targetLocation;
+      if (navStateFresh.isTransitioning && state.matchedLocation != navStateFresh.targetLocation) {
+        dev.log('Router: Following navigation transition to ${navStateFresh.targetLocation}');
+        return navStateFresh.targetLocation;
       }
       
       // Handle auth initialization states
@@ -57,9 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           
           dev.log('Router: Auth completed - isAuthenticated: $isAuthenticated');
 
-          // If authenticated, always go to dashboard except if already there
+          // If authenticated, allow dashboard and profile routes
           if (isAuthenticated) {
-            if (!state.matchedLocation.startsWith('/dashboard')) {
+            if (!state.matchedLocation.startsWith('/dashboard') && 
+                !state.matchedLocation.startsWith('/profile')) {
               dev.log('Router: Redirecting to /dashboard - authenticated user');
               return '/dashboard';
             }
@@ -82,33 +87,90 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Public routes
       GoRoute(
         path: '/',
-        builder: (context, state) => const LandingScreen(),
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: const LandingScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return PageTransition(
+                type: PageTransitionType.leftToRight,
+                child: child,
+                duration: const Duration(milliseconds: 300),
+                reverseDuration: const Duration(milliseconds: 300),
+              ).buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => const AuthScreen(),
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: const AuthScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return PageTransition(
+                type: PageTransitionType.rightToLeft,
+                child: child,
+                duration: const Duration(milliseconds: 300),
+                reverseDuration: const Duration(milliseconds: 300),
+              ).buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/loading',
-        builder: (context, state) => const LoadingScreen(),
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: const LoadingScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return PageTransition(
+                type: PageTransitionType.rightToLeft,
+                child: child,
+                duration: const Duration(milliseconds: 300),
+                reverseDuration: const Duration(milliseconds: 300),
+              ).buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              );
+            },
+          );
+        },
       ),
       
       // Protected routes
       GoRoute(
         path: '/dashboard',
         pageBuilder: (context, state) {
+          final navState = ref.read(navigationProvider);
           return CustomTransitionPage(
             key: state.pageKey,
             child: const DashboardScreen(),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween<Offset>(
-                    begin: const Offset(-1.0, 0.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOut)),
-                ),
+              return PageTransition(
+                type: navState.isBack ? PageTransitionType.leftToRight : PageTransitionType.rightToLeft,
                 child: child,
+                duration: const Duration(milliseconds: 300),
+                reverseDuration: const Duration(milliseconds: 300),
+              ).buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child,
               );
             },
           );
@@ -117,18 +179,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         pageBuilder: (context, state) {
+          final navState = ref.read(navigationProvider);
           return CustomTransitionPage(
             key: state.pageKey,
             child: const ProfileScreen(),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween<Offset>(
-                    begin: const Offset(1.0, 0.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOut)),
-                ),
+              return PageTransition(
+                type: navState.isBack ? PageTransitionType.leftToRight : PageTransitionType.rightToLeft,
                 child: child,
+                duration: const Duration(milliseconds: 300),
+                reverseDuration: const Duration(milliseconds: 300),
+              ).buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child,
               );
             },
           );

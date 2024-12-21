@@ -85,6 +85,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profile'),
         centerTitle: true,
+        backgroundColor: colorScheme.surface,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            dev.log('Profile: Going back to dashboard');
+            ref.read(navigationProvider.notifier).startTransition('/dashboard', isBack: true);
+          },
+        ),
       ),
       body: ListView(
         children: [

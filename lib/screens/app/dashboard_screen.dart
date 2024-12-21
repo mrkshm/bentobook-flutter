@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
@@ -84,6 +84,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final authState = ref.watch(authServiceProvider);
     final user = authState.maybeMap(
       authenticated: (state) => state.user,
@@ -91,34 +92,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (user == null) {
-      return const Center(child: CupertinoActivityIndicator());
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     dev.log('DashboardScreen: Building with user: ${user.attributes.email}');
     
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Dashboard'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                dev.log('Dashboard: Going to profile');
-                ref.read(navigationProvider.notifier).startTransition('/profile');
-              },
-              child: const Icon(CupertinoIcons.person_circle),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _handleLogout,
-              child: const Text('Logout'),
-            ),
-          ],
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        centerTitle: true,
+        backgroundColor: theme.colorScheme.surface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () {
+              dev.log('Dashboard: Going to profile');
+              ref.read(navigationProvider.notifier).startTransition('/profile');
+            },
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+            onPressed: _handleLogout,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -129,8 +131,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 const SizedBox(height: 24),
                 Text(
                   'Welcome, ${user.attributes.email}!',
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -139,14 +140,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: CupertinoButton.filled(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: _showCurrentUser,
                         child: const Text('Show Current User'),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CupertinoButton.filled(
+                      child: FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: _showAllUsers,
                         child: const Text('Show All Users'),
                       ),
@@ -155,11 +168,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 if (_testResult.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Text(
-                    _testResult,
-                    style: const TextStyle(
-                      fontFamily: 'Menlo',
-                      fontSize: 14,
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        _testResult,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'Menlo',
+                        ),
+                      ),
                     ),
                   ),
                 ],

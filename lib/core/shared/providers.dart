@@ -8,10 +8,12 @@ import 'dart:developer' as dev;
 class NavigationState {
   final String targetLocation;
   final bool isTransitioning;
+  final bool isBack;
 
   const NavigationState({
     required this.targetLocation,
     this.isTransitioning = false,
+    this.isBack = false,
   });
 }
 
@@ -118,9 +120,13 @@ class NavigationController extends StateNotifier<NavigationState> {
     }
   }
 
-  void startTransition(String target) {
-    dev.log('Navigation: Starting transition to $target');
-    state = NavigationState(targetLocation: target, isTransitioning: true);
+  void startTransition(String target, {bool isBack = false}) {
+    dev.log('Navigation: Starting transition to $target (isBack: $isBack)');
+    state = NavigationState(
+      targetLocation: target, 
+      isTransitioning: true,
+      isBack: isBack,
+    );
   }
 
   void endTransition() {
@@ -128,6 +134,7 @@ class NavigationController extends StateNotifier<NavigationState> {
     state = NavigationState(
       targetLocation: state.targetLocation,
       isTransitioning: false,
+      isBack: state.isBack,
     );
   }
 }
