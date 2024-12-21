@@ -1,7 +1,6 @@
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/api/models/user.dart' as api;
 import 'package:bentobook/core/database/tables/sync_status.dart';
-import 'package:drift/drift.dart';
 import 'dart:developer' as dev;
 
 class UserRepository {

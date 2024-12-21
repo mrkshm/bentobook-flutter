@@ -183,7 +183,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                     ),
-                    if (_userData?.email?.isNotEmpty ?? false)
+                    if (_userData?.email.isNotEmpty ?? false)
                       ListTile(
                         title: const Text('Email'),
                         subtitle: Text(_userData?.email ?? ''),

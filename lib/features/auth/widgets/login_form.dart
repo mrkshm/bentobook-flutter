@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/core/auth/auth_state.dart';
 import 'package:bentobook/features/auth/validators.dart';
 import 'dart:developer' as dev;
 

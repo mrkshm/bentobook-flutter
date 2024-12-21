@@ -17,8 +17,8 @@ final routerRedirectEnabledProvider = StateProvider<bool>((ref) => true);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
-  final navState = ref.watch(navigationProvider);
   final authInitState = ref.watch(authInitStateProvider);
+  final navState = ref.watch(navigationProvider);
   
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -27,9 +27,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       dev.log('Router: Checking redirect - path: ${state.matchedLocation}');
       dev.log('Router: Auth init state: $authInitState');
       dev.log('Router: Auth state: $authState');
-      
-      // Get navigation state
-      final navState = ref.read(navigationProvider);
       dev.log('Router: Navigation state - target: ${navState.targetLocation}, transitioning: ${navState.isTransitioning}');
       
       // If we're transitioning, go to target location
@@ -53,12 +50,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/auth';
           
         case AuthInitState.completed:
-          // Skip redirects during transitions
-          if (navState.isTransitioning) {
-            dev.log('Router: In transition, skipping redirect');
-            return null;
-          }
-
           final isAuthenticated = authState.maybeMap(
             authenticated: (_) => true,
             orElse: () => false,

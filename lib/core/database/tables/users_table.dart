@@ -1,6 +1,4 @@
 import 'package:drift/drift.dart';
-import '../../../core/api/models/user.dart' as api;
-import '../database.dart';
 import 'sync_status.dart';
 import 'dart:convert';
 

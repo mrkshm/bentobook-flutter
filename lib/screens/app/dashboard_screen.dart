@@ -67,8 +67,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     try {
       final users = await userRepository.getAllUsers();
       setState(() {
-        _testResult = 'Found ${users.length} users:\n' +
-            users.map((user) => '- ${user.displayName ?? user.email} (${user.email})').join('\n');
+        _testResult = 'Found ${users.length} users:\n'
+            '${users.map((user) => '- ${user.displayName ?? user.email} (${user.email})').join('\n')}';
       });
     } catch (e) {
       setState(() {
