@@ -18,147 +18,64 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    debugLogDiagnostics: true,
     redirect: (context, state) {
       dev.log('Router: Checking redirect - path: ${state.matchedLocation}');
-      
-      return authState.maybeMap(
-        authenticated: (_) {
-          // If already on a valid authenticated route, don't redirect
-          if (state.matchedLocation == '/dashboard' || 
-              state.matchedLocation == '/profile') {
-            return null;
-          }
-          return '/dashboard';
-        },
-        unauthenticated: (_) {
-          // If already on a valid public route, don't redirect
-          if (state.matchedLocation == '/' || 
-              state.matchedLocation == '/auth') {
-            return null;
-          }
-          return '/';
-        },
-        initial: (_) => '/loading',
-        loading: (_) => '/loading',
-        error: (_) => '/auth',
-        orElse: () => null,
+
+      // Handle loading state
+      if (authState.maybeMap(
+        initial: (_) => true,
+        loading: (_) => true,
+        orElse: () => false,
+      )) {
+        return '/public/loading';
+      }
+
+      final isAuthenticated = authState.maybeMap(
+        authenticated: (_) => true,
+        orElse: () => false,
       );
+
+      // Always redirect authenticated users to dashboard if they're in public area
+      if (isAuthenticated && state.matchedLocation.startsWith('/public')) {
+        dev.log('Router: Authenticated user in public area - redirecting to dashboard');
+        return '/app/dashboard';
+      }
+
+      // Redirect unauthenticated users to landing if they try to access app area
+      if (!isAuthenticated && state.matchedLocation.startsWith('/app')) {
+        dev.log('Router: Unauthenticated user in app area - redirecting to landing');
+        return '/public/landing';
+      }
+
+      return null;
     },
     routes: [
-      // Public routes
       GoRoute(
         path: '/',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const LandingScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return PageTransition(
-                type: PageTransitionType.leftToRight,
-                child: child,
-                duration: const Duration(milliseconds: 300),
-                reverseDuration: const Duration(milliseconds: 300),
-              ).buildTransitions(
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              );
-            },
-          );
-        },
+        redirect: (_, __) => '/public/landing',
+      ),
+      // Public routes
+      GoRoute(
+        path: '/public/landing',
+        builder: (context, state) => const LandingScreen(),
       ),
       GoRoute(
-        path: '/auth',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const AuthScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return PageTransition(
-                type: PageTransitionType.rightToLeft,
-                child: child,
-                duration: const Duration(milliseconds: 300),
-                reverseDuration: const Duration(milliseconds: 300),
-              ).buildTransitions(
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              );
-            },
-          );
-        },
+        path: '/public/auth',
+        builder: (context, state) => const AuthScreen(),
       ),
       GoRoute(
-        path: '/loading',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const LoadingScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return PageTransition(
-                type: PageTransitionType.rightToLeft,
-                child: child,
-                duration: const Duration(milliseconds: 300),
-                reverseDuration: const Duration(milliseconds: 300),
-              ).buildTransitions(
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              );
-            },
-          );
-        },
+        path: '/public/loading',
+        builder: (context, state) => const LoadingScreen(),
       ),
-      
-      // Protected routes
+      // App routes
       GoRoute(
-        path: '/dashboard',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const DashboardScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final isBack = state.extra as bool? ?? false;
-              return PageTransition(
-                type: isBack ? PageTransitionType.leftToRight : PageTransitionType.rightToLeft,
-                child: child,
-                duration: const Duration(milliseconds: 300),
-                reverseDuration: const Duration(milliseconds: 300),
-              ).buildTransitions(
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              );
-            },
-          );
-        },
+        path: '/app/dashboard',
+        builder: (context, state) => const DashboardScreen(),
       ),
       GoRoute(
-        path: '/profile',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const ProfileScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final isBack = state.extra as bool? ?? false;
-              return PageTransition(
-                type: isBack ? PageTransitionType.leftToRight : PageTransitionType.rightToLeft,
-                child: child,
-                duration: const Duration(milliseconds: 300),
-                reverseDuration: const Duration(milliseconds: 300),
-              ).buildTransitions(
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              );
-            },
-          );
-        },
+        path: '/app/profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
     ],
   );

@@ -105,7 +105,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             icon: const Icon(Icons.person_outline),
             onPressed: () {
               dev.log('Dashboard: Going to profile');
-              context.go('/profile');
+              context.go('/app/profile');
             },
           ),
           TextButton.icon(

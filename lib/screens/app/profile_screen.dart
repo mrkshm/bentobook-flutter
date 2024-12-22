@@ -32,7 +32,7 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: theme.colorScheme.surface,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard', extra: true),
+          onPressed: () => context.go('/app/dashboard', extra: true),
         ),
       ),
       body: ListView(

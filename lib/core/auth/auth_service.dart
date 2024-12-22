@@ -2,10 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as dev;
 import 'auth_state.dart';
-import '../api/api_client.dart';
-import '../api/api_exception.dart';
-import '../repositories/user_repository.dart';
-import '../shared/providers.dart';
+import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/api/api_exception.dart';
+import 'package:bentobook/core/repositories/user_repository.dart';
+import 'package:bentobook/core/shared/providers.dart';
 
 const _tokenKey = 'auth_token';
 
@@ -24,59 +24,37 @@ class AuthService extends StateNotifier<AuthState> {
 
   // Public initialization method
   Future<void> initializeAuth() async {
-    if (state.maybeMap(
-      initial: (_) => false,
-      orElse: () => true,
-    )) {
-      dev.log('AuthService: Already initialized');
-      return; // Already initialized
-    }
-
-    state = const AuthState.loading();
-    dev.log('AuthService: Starting initialization');
-    
     try {
+      dev.log('AuthService: Starting initialization');
       final token = await _storage.read(key: _tokenKey);
-      final userEmail = await _storage.read(key: 'user_email');
-      
-      dev.log('AuthService: Token: ${token != null}, Email: ${userEmail != null}');
-      
-      if (token == null || userEmail == null) {
-        dev.log('AuthService: No stored credentials');
-        // Clean up any partial credentials
-        await _storage.delete(key: _tokenKey);
-        await _storage.delete(key: 'user_email');
+      if (token == null) {
+        dev.log('AuthService: No token found');
         state = const AuthState.unauthenticated();
         return;
       }
 
-      // We have a token, try to get the user
-      try {
-        final response = await _apiClient.getMe();
-        if (response.isSuccess && response.data != null) {
-          dev.log('AuthService: Successfully got user data');
-          state = AuthState.authenticated(
-            user: response.data!,
-            token: token,
-          );
-          
-          // Save user to local database
-          await _userRepository.saveUserFromApi(response.data!);
-        } else {
-          dev.log('AuthService: Failed to get user data');
-          await _storage.delete(key: _tokenKey);
-          await _storage.delete(key: 'user_email');
-          state = const AuthState.unauthenticated();
-        }
-      } catch (e) {
-        dev.log('AuthService: Error getting user data', error: e);
+      _apiClient.setToken(token);
+      final refreshSuccess = await _apiClient.refreshToken();
+      dev.log('AuthService: Token refresh result: $refreshSuccess');
+
+      if (!refreshSuccess) {
+        dev.log('AuthService: Token refresh failed');
         await _storage.delete(key: _tokenKey);
-        await _storage.delete(key: 'user_email');
-        state = AuthState.error('Failed to get user data: $e');
+        state = const AuthState.unauthenticated();
+        return;
       }
-    } catch (e) {
-      dev.log('AuthService: Error during initialization', error: e);
-      state = AuthState.error('Failed to initialize: $e');
+
+      final userResponse = await _apiClient.getMe();
+      dev.log('AuthService: User response: ${userResponse.toString()}');
+      
+      if (userResponse.isSuccess && userResponse.data != null) {
+        state = AuthState.authenticated(user: userResponse.data!, token: token);
+      } else {
+        state = const AuthState.unauthenticated();
+      }
+    } catch (e, stack) {
+      dev.log('AuthService: Error during initialization', error: e, stackTrace: stack);
+      state = AuthState.error(e.toString());
     }
   }
 

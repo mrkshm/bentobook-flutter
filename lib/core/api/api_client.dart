@@ -1,10 +1,12 @@
+import 'package:bentobook/core/api/models/session_response.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/config/env_config.dart';
 import 'api_exception.dart';
 import 'models/api_response.dart';
 import 'models/user.dart';
-import "api_endpoints.dart";
+import 'api_endpoints.dart';
+import 'dart:developer' as dev;
 
 class ApiClient {
   late final Dio _dio;
@@ -203,18 +205,19 @@ class ApiClient {
   Future<bool> refreshToken() async {
     try {
       final response = await _dio.post(ApiEndpoints.refreshToken);
-      final apiResponse = ApiResponse<User>.fromJson(
-        response.data,
-        (json) => User.fromJson(json as Map<String, dynamic>),
-      );
-
-      if (apiResponse.meta?.token != null) {
-        _token = apiResponse.meta?.token;
+      final jsonData = response.data as Map<String, dynamic>;
+      
+      if (jsonData['status'] == 'success' && jsonData['data'] != null) {
+        final sessionData = jsonData['data'] as Map<String, dynamic>;
+        final session = SessionResponse.fromJson(sessionData);
+        
+        _token = session.attributes.token;
         return true;
       }
       return false;
-    } on DioException catch (e) {
-      throw _handleError(e);
+    } catch (e) {
+      dev.log('ApiClient: Error parsing refresh token response', error: e);
+      return false;
     }
   }
 
