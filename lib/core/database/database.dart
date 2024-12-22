@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:flutter/material.dart' show ThemeMode;
 import 'tables/users_table.dart';
 import 'tables/sync_status.dart';
 import 'dart:developer' as dev;
@@ -38,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -54,6 +55,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(users, users.avatarUrls);
         await m.addColumn(users, users.syncStatus);
         dev.log('Database: Added new columns for version 2');
+      }
+      if (from < 3) {
+        // No schema change needed for version 3, just using the converter
+        dev.log('Database: Updated theme column to use ThemeModeConverter');
       }
     },
     beforeOpen: (details) async {
@@ -113,7 +118,7 @@ class AppDatabase extends _$AppDatabase {
     String? firstName,
     String? lastName,
     String? about,
-    String? preferredTheme,
+    ThemeMode? preferredTheme,
     String? preferredLanguage,
     Map<String, String>? avatarUrls,
   }) async {
@@ -126,17 +131,33 @@ class AppDatabase extends _$AppDatabase {
       final existingUser = await getUserByEmail(email);
       if (existingUser != null) {
         dev.log('Database: User already exists, updating instead');
-        return await updateUser(existingUser.copyWith(
+        final theme = preferredTheme ?? ThemeMode.light;
+        dev.log('Database: Saving theme change to: ${theme.toString()}');
+        
+        final updatedUser = existingUser.copyWith(
           username: Value(username),
           displayName: Value(displayName),
           firstName: Value(firstName),
           lastName: Value(lastName),
           about: Value(about),
-          preferredTheme: preferredTheme ?? 'light',
+          preferredTheme: theme,
           preferredLanguage: preferredLanguage ?? 'en',
           avatarUrls: Value(avatarUrls),
           updatedAt: DateTime.now(),
-        ));
+        );
+        await (update(users)..where((t) => t.id.equals(existingUser.id)))
+          .write(UsersCompanion(
+            username: Value(updatedUser.username),
+            displayName: Value(updatedUser.displayName),
+            firstName: Value(updatedUser.firstName),
+            lastName: Value(updatedUser.lastName),
+            about: Value(updatedUser.about),
+            preferredTheme: Value(updatedUser.preferredTheme),
+            preferredLanguage: Value(updatedUser.preferredLanguage),
+            avatarUrls: Value(updatedUser.avatarUrls),
+            updatedAt: Value(updatedUser.updatedAt),
+          ));
+        return updatedUser;
       }
 
       dev.log('Database: Creating new user');
@@ -148,7 +169,7 @@ class AppDatabase extends _$AppDatabase {
           firstName: Value(firstName),
           lastName: Value(lastName),
           about: Value(about),
-          preferredTheme: Value(preferredTheme ?? 'light'),
+          preferredTheme: Value(preferredTheme ?? ThemeMode.light),
           preferredLanguage: Value(preferredLanguage ?? 'en'),
           avatarUrls: Value(avatarUrls),
           createdAt: DateTime.now(),

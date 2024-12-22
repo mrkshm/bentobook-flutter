@@ -18,7 +18,6 @@ final routerRedirectEnabledProvider = StateProvider<bool>((ref) => true);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
-  final navState = ref.watch(navigationProvider);  // Watch at provider level
   final authInitState = ref.watch(authInitStateProvider);
   
   return GoRouter(
