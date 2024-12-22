@@ -14,7 +14,36 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
+  String? previousLocation;
   
+  Page<void> buildTransitionPage(BuildContext context, GoRouterState state, Widget child) {
+    final isBack = previousLocation != null && 
+        previousLocation!.length > state.matchedLocation.length;
+    previousLocation = state.matchedLocation;
+
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return PageTransition(
+          type: isBack 
+            ? PageTransitionType.leftToRight 
+            : PageTransitionType.rightToLeft,
+          duration: const Duration(milliseconds: 300),
+          reverseDuration: const Duration(milliseconds: 300),
+          child: child,
+        ).buildTransitions(
+          context,
+          animation,
+          secondaryAnimation,
+          child,
+        );
+      },
+    );
+  }
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
@@ -71,11 +100,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       // App routes
       GoRoute(
         path: '/app/dashboard',
-        builder: (context, state) => const DashboardScreen(),
+        pageBuilder: (context, state) => buildTransitionPage(
+          context,
+          state,
+          const DashboardScreen(),
+        ),
       ),
       GoRoute(
         path: '/app/profile',
-        builder: (context, state) => const ProfileScreen(),
+        pageBuilder: (context, state) => buildTransitionPage(
+          context,
+          state,
+          const ProfileScreen(),
+        ),
       ),
     ],
   );
