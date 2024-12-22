@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
+import 'package:bentobook/core/theme/theme.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -11,7 +12,7 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final themeMode = ref.watch(themeProvider);
-    final themeNotifier = ref.read(themeProvider.notifier);
+    final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
     final user = authState.maybeMap(
       authenticated: (state) => state.user,
@@ -34,66 +35,160 @@ class ProfileScreen extends ConsumerWidget {
           onPressed: () => context.go('/dashboard', extra: true),
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 24),
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: theme.colorScheme.primary,
-                  child: Text(
-                    user.attributes.email.substring(0, 1).toUpperCase(),
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: theme.colorScheme.onPrimary,
+      body: ListView(
+        children: [
+          // Theme Settings Card
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      'Appearance',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  user.attributes.email,
-                  style: theme.textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Appearance',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                  ListTile(
+                    title: const Text('Theme Mode'),
+                    trailing: SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          icon: Icon(Icons.light_mode),
                         ),
-                        const SizedBox(height: 16),
-                        ListTile(
-                          title: const Text('Theme'),
-                          subtitle: Text(themeNotifier.themeName),
-                          trailing: IconButton(
-                            icon: Icon(
-                              themeMode == ThemeMode.light
-                                  ? Icons.light_mode
-                                  : themeMode == ThemeMode.dark
-                                      ? Icons.dark_mode
-                                      : Icons.settings_suggest,
-                            ),
-                            onPressed: themeNotifier.toggleTheme,
-                          ),
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          icon: Icon(Icons.brightness_auto),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          icon: Icon(Icons.dark_mode),
+                        ),
+                      ],
+                      selected: {themeMode},
+                      onSelectionChanged: (Set<ThemeMode> selection) {
+                        ref.read(themeProvider.notifier).setTheme(selection.first);
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Color Scheme'),
+                    trailing: PopupMenuButton<String>(
+                      icon: Icon(Icons.palette_outlined, color: theme.colorScheme.primary),
+                      position: PopupMenuPosition.under,
+                      itemBuilder: (context) => AppTheme.schemes.entries.map((scheme) =>
+                        PopupMenuItem(
+                          value: scheme.key,
+                          child: Text(scheme.key),
+                        ),
+                      ).toList(),
+                      onSelected: (String schemeName) {
+                        ref.read(colorSchemeProvider.notifier).setSchemeByName(schemeName);
+                      },
+                    ),
+                    subtitle: Text(
+                      AppTheme.schemeToString(colorScheme),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // User Info Card
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      'User Information',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Email'),
+                    subtitle: Text(user.attributes.email),
+                  ),
+                  if (user.attributes.profile?.displayName?.isNotEmpty ?? false)
+                    ListTile(
+                      title: const Text('Display Name'),
+                      subtitle: Text(user.attributes.profile!.displayName!),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Logout Card
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: ListTile(
+                title: Text(
+                  'Logout',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                leading: Icon(Icons.logout, color: theme.colorScheme.error),
+                onTap: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Logout'),
+                      content: const Text('Are you sure you want to logout?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Logout'),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                  );
+
+                  if (confirmed == true) {
+                    await ref.read(authServiceProvider.notifier).logout();
+                  }
+                },
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
