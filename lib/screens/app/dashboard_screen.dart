@@ -1,6 +1,7 @@
+import 'package:bentobook/core/shared/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/shared/providers.dart';
+import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'dart:developer' as dev;
 
@@ -77,11 +78,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  void _handleLogout() async {
-    dev.log('DashboardScreen: Logging out');
-    await ref.read(navigationProvider.notifier).logout();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -109,13 +105,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             icon: const Icon(Icons.person_outline),
             onPressed: () {
               dev.log('Dashboard: Going to profile');
-              ref.read(navigationProvider.notifier).startTransition('/profile');
+              context.go('/profile');
             },
           ),
           TextButton.icon(
             icon: const Icon(Icons.logout),
             label: const Text('Logout'),
-            onPressed: _handleLogout,
+            onPressed: () async {
+              dev.log('Dashboard: Logging out');
+              await ref.read(authServiceProvider.notifier).logout();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -153,7 +152,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: FilledButton.tonal(
+                      child: FilledButton(
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -166,20 +165,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ],
                 ),
-                if (_testResult.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        _testResult,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontFamily: 'Menlo',
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 24),
+                Text(
+                  _testResult,
+                  style: theme.textTheme.bodyMedium,
+                ),
               ],
             ),
           ),

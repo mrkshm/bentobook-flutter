@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/features/auth/widgets/login_form.dart';
 import 'package:bentobook/features/auth/widgets/signup_form.dart';
 import 'dart:developer' as dev;
+
+import 'package:go_router/go_router.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -26,7 +27,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             dev.log('Auth: Going back to landing');
-            ref.read(navigationProvider.notifier).startTransition('/');
+            context.go('/');
           },
         ),
         centerTitle: true,

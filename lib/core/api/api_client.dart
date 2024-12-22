@@ -115,7 +115,6 @@ class ApiClient {
           },
         },
       );
-
       final apiResponse = ApiResponse<User>.fromJson(
         response.data,
         (json) => User.fromJson(json as Map<String, dynamic>),
@@ -126,11 +125,39 @@ class ApiClient {
       }
       return apiResponse;
     } on DioException catch (e) {
-      throw _handleError(e);
+      throw ApiException.fromDioError(e);
     }
   }
 
   Future<ApiResponse<User>> register({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.register,
+        data: {
+          'user': {
+            'email': email,
+            'password': password,
+          },
+        },
+      );
+      final apiResponse = ApiResponse<User>.fromJson(
+        response.data,
+        (json) => User.fromJson(json as Map<String, dynamic>),
+      );
+
+      if (apiResponse.meta?.token != null) {
+        _token = apiResponse.meta?.token;
+      }
+      return apiResponse;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<ApiResponse<User>> registerOld({
     required String email,
     required String password,
     String? passwordConfirmation,
@@ -191,18 +218,33 @@ class ApiClient {
     }
   }
 
-  Future<User> getMe() async {
+  Future<ApiResponse<User>> getMe() async {
     try {
-      final response = await _dio.get(ApiEndpoints.profile);
-      final apiResponse = ApiResponse<User>.fromJson(
+      final response = await get(ApiEndpoints.profile);
+      return ApiResponse<User>.fromJson(
+        response as Map<String, dynamic>,
+        (json) => User.fromJson(json as Map<String, dynamic>),
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<ApiResponse<User>> updateProfile({String? preferredTheme}) async {
+    try {
+      final response = await _dio.patch(
+        ApiEndpoints.updateProfile,
+        data: {
+          'profile': {
+            if (preferredTheme != null) 'preferred_theme': preferredTheme,
+          },
+        },
+      );
+
+      return ApiResponse<User>.fromJson(
         response.data,
         (json) => User.fromJson(json as Map<String, dynamic>),
       );
-
-      if (apiResponse.isSuccess && apiResponse.data != null) {
-        return apiResponse.data!;
-      }
-      throw Exception('Failed to get user profile');
     } on DioException catch (e) {
       throw _handleError(e);
     }

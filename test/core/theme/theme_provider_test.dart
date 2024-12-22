@@ -1,153 +1,73 @@
+import 'package:bentobook/core/api/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
-import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/database/database.dart';
-import 'package:bentobook/core/api/models/user.dart' as api;
-import 'package:bentobook/core/auth/auth_state.dart';
 import 'package:bentobook/core/database/tables/sync_status.dart';
+import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/auth/auth_state.dart';
+import 'package:bentobook/core/api/models/api_response.dart';
+import 'package:bentobook/core/api/models/user.dart' as api;
+import 'package:bentobook/core/api/api_exception.dart';
+import 'package:mocktail/mocktail.dart';
 
-// Simple test database that tracks theme changes
-class TestDatabase implements AppDatabase {
-  User? lastUpdatedUser;
-  
-  @override
-  Future<User> updateUser(User user) async {
-    lastUpdatedUser = user;
-    return user;
-  }
-  
-  @override
-  Future<User?> getUserByEmail(String email) async {
-    return User(
-      id: 1,
-      email: email,
-      username: 'testuser',
-      displayName: 'Test User',
-      firstName: 'Test',
-      lastName: 'User',
-      about: 'Test user for unit tests',
-      preferredTheme: ThemeMode.light,
-      preferredLanguage: 'en',
-      avatarUrls: const {},
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      syncStatus: SyncStatus.synced,
-    );
-  }
+// Mock classes
+class MockDatabase extends Mock implements AppDatabase {}
+class MockApiClient extends Mock implements ApiClient {}
+class MockAuthService extends Mock implements AuthService {}
+class MockAuthState extends Mock implements AuthState {}
 
-  @override
-  Future<User> createUser({
-    required String email,
-    String? username,
-    String? displayName,
-    String? firstName,
-    String? lastName,
-    String? about,
-    ThemeMode? preferredTheme,
-    String? preferredLanguage,
-    Map<String, String>? avatarUrls,
-  }) async {
-    return User(
-      id: 1,
-      email: email,
-      username: username ?? 'testuser',
-      displayName: displayName ?? 'Test User',
-      firstName: firstName ?? 'Test',
-      lastName: lastName ?? 'User',
-      about: about ?? 'Test user for unit tests',
-      preferredTheme: preferredTheme ?? ThemeMode.light,
-      preferredLanguage: preferredLanguage ?? 'en',
-      avatarUrls: avatarUrls ?? const {},
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      syncStatus: SyncStatus.synced,
-    );
-  }
+ProviderContainer createContainer({
+  AppDatabase? database,
+  ApiClient? apiClient,
+  AuthService? authService,
+}) {
+  final container = ProviderContainer(
+    overrides: [
+      databaseProvider.overrideWithValue(database ?? MockDatabase()),
+      apiClientProvider.overrideWithValue(apiClient ?? MockApiClient()),
+      authServiceProvider.overrideWith((ref) => authService ?? MockAuthService()),
+    ],
+  );
 
-  @override
-  Future<List<User>> getAllUsers() async => [];
-
-  @override
-  Stream<User?> watchUserByEmail(String email) {
-    return Stream.value(null);
-  }
-
-  @override
-  Future<void> close() async {}
-  Future<void> initialize() async {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-// Simple test auth service that returns a fixed user
-class TestAuthService extends StateNotifier<AuthState> implements AuthService {
-  TestAuthService() : super(AuthState.authenticated(
-    user: api.User(
-      id: '1',
-      type: 'users',
-      attributes: api.UserAttributes(
-        email: 'test@example.com',
-        profile: api.UserProfile(
-          username: 'testuser',
-          preferredTheme: 'light',
-          preferredLanguage: 'en',
-        ),
-      ),
-    ),
-    token: 'test-token',
-  ));
-
-  @override
-  Future<void> login({required String email, required String password}) async {}
-
-  Future<void> register({required String email, required String password, String? passwordConfirmation}) async {}
-
-  @override
-  Future<void> logout() async {}
-
-  @override
-  Future<void> offlineLogin({required String email, required String password}) async {}
-
-  @override
-  Future<void> initializeAuth() async {}
+  addTearDown(container.dispose);
+  return container;
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  
-  late ProviderContainer container;
-  late TestDatabase testDatabase;
-
-  setUp(() {
-    testDatabase = TestDatabase();
-
-    container = ProviderContainer(
-      overrides: [
-        databaseProvider.overrideWithValue(testDatabase),
-        authServiceProvider.overrideWith((ref) => TestAuthService()),
-      ],
-    );
-
-    addTearDown(container.dispose);
+  setUpAll(() {
+    registerFallbackValue(ThemeMode.system);
+    registerFallbackValue(MockAuthState());
+    registerFallbackValue(User(
+      id: 1,
+      email: 'test@example.com',
+      username: 'test',
+      preferredTheme: ThemeMode.system,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      preferredLanguage: '',
+      syncStatus: SyncStatus.synced,
+    ));
   });
 
   group('ThemeNotifier', () {
-    test('initial state is system theme', () {
+    test('initial theme is system', () {
+      final container = createContainer();
       final theme = container.read(themeProvider);
       expect(theme, equals(ThemeMode.system));
     });
 
     test('setTheme updates theme state', () {
+      final container = createContainer();
       final notifier = container.read(themeProvider.notifier);
       notifier.setTheme(ThemeMode.dark);
       expect(container.read(themeProvider), equals(ThemeMode.dark));
     });
 
     test('toggleTheme switches between light and dark', () {
+      final container = createContainer();
       final notifier = container.read(themeProvider.notifier);
       
       // Start with light theme
@@ -163,18 +83,8 @@ void main() {
       expect(container.read(themeProvider), equals(ThemeMode.light));
     });
 
-    test('setTheme persists theme to database for authenticated user', () async {
-      final notifier = container.read(themeProvider.notifier);
-      notifier.setTheme(ThemeMode.dark);
-
-      // Give time for the async database update to complete
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // Verify database was updated with dark theme
-      expect(testDatabase.lastUpdatedUser?.preferredTheme, equals(ThemeMode.dark));
-    });
-
     test('themeName returns correct string representation', () {
+      final container = createContainer();
       final notifier = container.read(themeProvider.notifier);
       
       notifier.setTheme(ThemeMode.system);
@@ -185,6 +95,132 @@ void main() {
       
       notifier.setTheme(ThemeMode.dark);
       expect(notifier.themeName, equals('Dark'));
+    });
+
+    test('syncs theme changes with API', () async {
+      // Arrange
+      final mockDb = MockDatabase();
+      final mockApiClient = MockApiClient();
+      final mockAuthService = MockAuthService();
+      final container = createContainer(
+        database: mockDb,
+        apiClient: mockApiClient,
+        authService: mockAuthService,
+      );
+
+      // Mock authenticated user
+      final authState = AuthState.authenticated(
+        user: api.User(
+          id: '1',
+          type: 'user',
+          attributes: api.UserAttributes(
+            email: 'test@example.com',
+            profile: api.UserProfile(
+              username: 'test',
+              preferredTheme: 'system',
+            ),
+          ),
+        ),
+        token: 'test-token',
+      );
+      when(() => mockAuthService.state).thenReturn(authState);
+
+      when(() => mockDb.getUserByEmail('test@example.com')).thenAnswer((_) async => User(
+        id: 1,
+        email: 'test@example.com',
+        username: 'test',
+        preferredTheme: ThemeMode.system,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        preferredLanguage: '',
+        syncStatus: SyncStatus.synced,
+      ));
+
+      when(() => mockDb.updateUser(any())).thenAnswer((_) async => User(
+        id: 1,
+        email: 'test@example.com',
+        username: 'test',
+        preferredTheme: ThemeMode.dark,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        preferredLanguage: '',
+        syncStatus: SyncStatus.synced,
+      ));
+
+      when(() => mockApiClient.updateProfile(preferredTheme: 'dark'))
+          .thenAnswer((_) async => ApiResponse(status: 'success', data: null));
+
+      // Act
+      final notifier = container.read(themeProvider.notifier);
+      notifier.setTheme(ThemeMode.dark);
+      await Future.delayed(const Duration(milliseconds: 100)); // Wait for async operations
+
+      // Assert
+      verify(() => mockApiClient.updateProfile(preferredTheme: 'dark')).called(1);
+      verify(() => mockDb.updateUser(any())).called(1);
+    });
+
+    test('keeps local changes when API sync fails', () async {
+      // Arrange
+      final mockDb = MockDatabase();
+      final mockApiClient = MockApiClient();
+      final mockAuthService = MockAuthService();
+      final container = createContainer(
+        database: mockDb,
+        apiClient: mockApiClient,
+        authService: mockAuthService,
+      );
+
+      // Mock authenticated user
+      final authState = AuthState.authenticated(
+        user: api.User(
+          id: '1',
+          type: 'user',
+          attributes: api.UserAttributes(
+            email: 'test@example.com',
+            profile: api.UserProfile(
+              username: 'test',
+              preferredTheme: 'system',
+            ),
+          ),
+        ),
+        token: 'test-token',
+      );
+      when(() => mockAuthService.state).thenReturn(authState);
+
+      when(() => mockDb.getUserByEmail('test@example.com')).thenAnswer((_) async => User(
+        id: 1,
+        email: 'test@example.com',
+        username: 'test',
+        preferredTheme: ThemeMode.system,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        preferredLanguage: '',
+        syncStatus: SyncStatus.synced,
+      ));
+
+      when(() => mockDb.updateUser(any())).thenAnswer((_) async => User(
+        id: 1,
+        email: 'test@example.com',
+        username: 'test',
+        preferredTheme: ThemeMode.dark,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        preferredLanguage: '',
+        syncStatus: SyncStatus.synced,
+      ));
+
+      when(() => mockApiClient.updateProfile(preferredTheme: 'dark'))
+          .thenThrow(ApiException(message: 'Failed to update profile'));
+
+      // Act
+      final notifier = container.read(themeProvider.notifier);
+      notifier.setTheme(ThemeMode.dark);
+      await Future.delayed(const Duration(milliseconds: 100)); // Wait for async operations
+
+      // Assert
+      verify(() => mockApiClient.updateProfile(preferredTheme: 'dark')).called(1);
+      verify(() => mockDb.updateUser(any())).called(1); // Local update should still happen
     });
   });
 }

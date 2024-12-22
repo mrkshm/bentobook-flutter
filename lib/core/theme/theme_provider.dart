@@ -1,3 +1,4 @@
+import 'package:bentobook/core/api/api_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flex_color_scheme/flex_color_scheme.dart' show FlexScheme;
@@ -23,15 +24,16 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
     dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
     state = theme;
     
-    // Update theme in database for current user
+    // Update theme in database and API for current user
     try {
-      final authState = _ref.read(authServiceProvider);
-      final email = authState.maybeMap(
+      final authService = _ref.read(authServiceProvider.notifier);
+      final email = authService.state.maybeMap(
         authenticated: (state) => state.user.attributes.email,
         orElse: () => null,
       );
       
       if (email != null) {
+        // Update local database
         final userRepo = _ref.read(userRepositoryProvider);
         final user = await userRepo.getCurrentUser(email);
         if (user != null) {
@@ -42,6 +44,23 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
               updatedAt: DateTime.now(),
             ),
           );
+
+          // Sync with API
+          try {
+            dev.log('ThemeNotifier: Syncing theme with API');
+            final apiClient = _ref.read(apiClientProvider);
+            final response = await apiClient.updateProfile(
+              preferredTheme: theme.toString().split('.').last.toLowerCase(), // Convert ThemeMode to string
+            );
+            if (response.isSuccess) {
+              dev.log('ThemeNotifier: Theme synced with API successfully');
+            } else {
+              dev.log('ThemeNotifier: API returned error', error: response.errors);
+            }
+          } catch (e) {
+            dev.log('ThemeNotifier: Failed to sync theme with API', error: e);
+            // Don't throw - we want to keep the local change even if API sync fails
+          }
         }
       }
     } catch (e) {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/shared/providers.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:developer' as dev;
 
 class LandingScreen extends ConsumerWidget {
@@ -29,18 +29,18 @@ class LandingScreen extends ConsumerWidget {
                   children: [
                     Text(
                       'Welcome to BentoBook',
-                      textAlign: TextAlign.center,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
                       'Not only what you ate, but how you felt',
-                      textAlign: TextAlign.center,
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -56,7 +56,7 @@ class LandingScreen extends ConsumerWidget {
                     ),
                     onPressed: () {
                       dev.log('Landing: Going to auth screen');
-                      ref.read(navigationProvider.notifier).startTransition('/auth');
+                      context.go('/auth');
                     },
                     child: const Text('Login / Sign Up'),
                   ),
@@ -73,7 +73,7 @@ class LandingScreen extends ConsumerWidget {
                     ),
                     onPressed: () {
                       dev.log('Landing: Going to auth screen');
-                      ref.read(navigationProvider.notifier).startTransition('/auth');
+                      context.go('/auth');
                     },
                     child: const Text('Learn More'),
                   ),
