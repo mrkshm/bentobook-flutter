@@ -18,7 +18,16 @@ class SyncStatusConverter extends TypeConverter<SyncStatus, String> {
   }
 
   @override
-  String toSql(SyncStatus value) {
-    return value.name;
-  }
+  String toSql(SyncStatus value) => value.name;
+}
+
+class SyncStatusTable extends Table {
+  TextColumn get entityType => text()();
+  IntColumn get entityId => integer()();
+  TextColumn get status => textEnum<SyncStatus>()();
+  DateTimeColumn get lastSynced => dateTime()();
+  TextColumn get error => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {entityType, entityId};
 }

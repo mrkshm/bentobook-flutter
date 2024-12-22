@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'tables/users_table.dart';
 import 'tables/sync_status.dart';
+import 'tables/operation_queue.dart';
+import 'package:bentobook/core/sync/operation_types.dart';
 import 'dart:developer' as dev;
 
 part 'database.g.dart';
@@ -32,14 +34,18 @@ LazyDatabase _openConnection() {
   });
 }
 
-@DriftDatabase(tables: [Users])
+@DriftDatabase(tables: [
+  Users, 
+  SyncStatusTable, 
+  OperationQueue, 
+  ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection()) {
     _initDatabase();
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,9 +62,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(users, users.syncStatus);
         dev.log('Database: Added new columns for version 2');
       }
-      if (from < 3) {
-        // No schema change needed for version 3, just using the converter
-        dev.log('Database: Updated theme column to use ThemeModeConverter');
+      if (from < 4) {
+        dev.log('Database: Adding operation queue table');
+        await m.createTable(operationQueue);
+        dev.log('Database: Operation queue table created');
       }
     },
     beforeOpen: (details) async {
@@ -227,5 +234,26 @@ class AppDatabase extends _$AppDatabase {
   Future<List<User>> getAllUsers() {
     dev.log('Database: Getting all users');
     return (select(users)).get();
+  }
+
+  Future<void> updateUserTheme(String email, ThemeMode theme) async {
+    dev.log('Database: Updating theme to ${theme.toString()} for user: $email');
+    try {
+      final user = await getUserByEmail(email);
+      if (user == null) {
+        throw StateError('User not found: $email');
+      }
+
+      final updatedUser = user.copyWith(
+        preferredTheme: theme,
+        updatedAt: DateTime.now(),
+      );
+      
+      await updateUser(updatedUser);
+      dev.log('Database: Theme updated successfully');
+    } catch (e) {
+      dev.log('Database: Error updating user theme', error: e);
+      rethrow;
+    }
   }
 }

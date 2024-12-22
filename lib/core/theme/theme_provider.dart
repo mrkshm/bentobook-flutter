@@ -1,70 +1,94 @@
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/database/database.dart';
+import 'package:bentobook/core/sync/operation_types.dart';
+import 'package:bentobook/core/sync/queue_manager.dart';
+import 'package:bentobook/core/theme/theme.dart';
+import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart' show ThemeMode;
-import 'package:flex_color_scheme/flex_color_scheme.dart' show FlexScheme;
 import 'dart:developer' as dev;
-import '../auth/auth_service.dart';
 import '../shared/providers.dart';
-import 'theme.dart';
+import 'theme_persistence.dart';
 
-final themeProvider = StateNotifierProvider<ThemeNotifier, ThemeMode>((ref) {
-  return ThemeNotifier(ref);
-});
-
-final colorSchemeProvider = StateNotifierProvider<ColorSchemeNotifier, FlexScheme>((ref) {
-  return ColorSchemeNotifier();
-});
-
-class ThemeNotifier extends StateNotifier<ThemeMode> {
-  final Ref _ref;
+abstract class BaseThemeNotifier extends StateNotifier<ThemeMode> {
+  BaseThemeNotifier(super.initial);
   
-  ThemeNotifier(this._ref) : super(ThemeMode.system);
+  void setTheme(ThemeMode theme);
+}
 
-  void setTheme(ThemeMode theme) async {
-    dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
+class NotAuthenticatedThemeNotifier extends BaseThemeNotifier {
+  NotAuthenticatedThemeNotifier() : super(ThemeMode.system);
+  
+  @override
+  void setTheme(ThemeMode theme) {
     state = theme;
-    
-    // Update theme in database and API for current user
-    try {
-      final authService = _ref.read(authServiceProvider.notifier);
-      final email = authService.state.maybeMap(
-        authenticated: (state) => state.user.attributes.email,
-        orElse: () => null,
-      );
-      
-      if (email != null) {
-        // Update local database
-        final userRepo = _ref.read(userRepositoryProvider);
-        final user = await userRepo.getCurrentUser(email);
-        if (user != null) {
-          dev.log('ThemeNotifier: Updating theme in database for user ${user.email}');
-          await _ref.read(databaseProvider).updateUser(
-            user.copyWith(
-              preferredTheme: theme,
-              updatedAt: DateTime.now(),
-            ),
-          );
+  }
+}
 
-          // Sync with API
-          try {
-            dev.log('ThemeNotifier: Syncing theme with API');
-            final apiClient = _ref.read(apiClientProvider);
-            final response = await apiClient.updateProfile(
-              preferredTheme: theme.toString().split('.').last.toLowerCase(), // Convert ThemeMode to string
-            );
-            if (response.isSuccess) {
-              dev.log('ThemeNotifier: Theme synced with API successfully');
-            } else {
-              dev.log('ThemeNotifier: API returned error', error: response.errors);
-            }
-          } catch (e) {
-            dev.log('ThemeNotifier: Failed to sync theme with API', error: e);
-            // Don't throw - we want to keep the local change even if API sync fails
-          }
-        }
+final themeProvider = StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
+  final authState = ref.watch(authServiceProvider);
+  
+  // Return system theme notifier if not authenticated
+  if (!authState.maybeMap(
+    authenticated: (_) => true,
+    orElse: () => false,
+  )) {
+    return NotAuthenticatedThemeNotifier();
+  }
+
+  final user = authState.maybeMap(
+    authenticated: (state) => state.user,
+    orElse: () => throw StateError('User must be authenticated'),
+  );
+  
+  final db = ref.watch(databaseProvider);
+  final api = ref.watch(apiClientProvider);
+  final queueManager = ref.watch(queueManagerProvider);
+  
+  return ThemeNotifier(
+    db: db,
+    api: api,
+    queueManager: queueManager,
+    userEmail: user.attributes.email,
+  );
+});
+
+class ThemeNotifier extends BaseThemeNotifier {
+  final AppDatabase db;
+  final ApiClient api;
+  final QueueManager queueManager;
+  final String userEmail;
+
+  ThemeNotifier({
+    required this.db,
+    required this.api,
+    required this.queueManager,
+    required this.userEmail,
+  }) : super(ThemeMode.system);
+
+  @override
+  Future<void> setTheme(ThemeMode theme) async {
+    state = theme;
+    dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
+    
+    try {
+      await db.updateUserTheme(userEmail, theme);
+      dev.log('ThemeNotifier: Updated theme in database');
+      
+      try {
+        await api.updateProfile(preferredTheme: ThemePersistence.themeToString(theme));
+        dev.log('ThemeNotifier: Synced theme with API');
+      } catch (e) {
+        dev.log('ThemeNotifier: API sync failed, queueing operation');
+        await queueManager.enqueueOperation(
+          type: OperationType.themeUpdate,
+          payload: {'theme': ThemePersistence.themeToString(theme)},
+        );
       }
     } catch (e) {
-      dev.log('ThemeNotifier: Failed to update theme in database', error: e);
+      dev.log('ThemeNotifier: Error updating theme', error: e);
+      rethrow;
     }
   }
 
@@ -87,15 +111,13 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
 }
 
 class ColorSchemeNotifier extends StateNotifier<FlexScheme> {
-  ColorSchemeNotifier() : super(AppTheme.defaultScheme);
+  ColorSchemeNotifier() : super(FlexScheme.blue);
 
-  void setScheme(FlexScheme scheme) {
-    state = scheme;
+  void setSchemeByName(String schemeName) {
+    state = AppTheme.stringToScheme(schemeName);
   }
-
-  void setSchemeByName(String name) {
-    state = AppTheme.stringToScheme(name);
-  }
-
-  String get schemeName => AppTheme.schemeToString(state);
 }
+
+final colorSchemeProvider = StateNotifierProvider<ColorSchemeNotifier, FlexScheme>((ref) {
+  return ColorSchemeNotifier();
+});

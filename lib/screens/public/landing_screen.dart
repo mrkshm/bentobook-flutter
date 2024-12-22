@@ -56,7 +56,7 @@ class LandingScreen extends ConsumerWidget {
                     ),
                     onPressed: () {
                       dev.log('Landing: Going to auth screen');
-                      context.go('/auth');
+                      context.go('/public/auth');
                     },
                     child: const Text('Login / Sign Up'),
                   ),

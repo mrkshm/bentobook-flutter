@@ -14,6 +14,8 @@ class AppTheme {
     'Amber': FlexScheme.amber,
     'Jungle': FlexScheme.jungle,
     'Deepblue': FlexScheme.deepBlue,
+    'Green': FlexScheme.green,
+    'Red': FlexScheme.red,
   };
 
   static ThemeData light({FlexScheme scheme = defaultScheme}) {
@@ -24,7 +26,7 @@ class AppTheme {
       subThemesData: const FlexSubThemesData(
         blendOnLevel: 10,
         blendOnColors: false,
-        useTextTheme: true,
+        useMaterial3Typography: true,
         useM2StyleDividerInM3: true,
         alignedDropdown: true,
         useInputDecoratorThemeInDialogs: true,
@@ -55,8 +57,10 @@ class AppTheme {
 
   static String schemeToString(FlexScheme scheme) {
     return schemes.entries
-        .firstWhere((entry) => entry.value == scheme, 
-                   orElse: () => const MapEntry('Blue', FlexScheme.blue))
+        .firstWhere(
+          (e) => e.value == scheme,
+          orElse: () => MapEntry('Blue', FlexScheme.blue),
+        )
         .key;
   }
 

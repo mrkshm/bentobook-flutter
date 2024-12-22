@@ -1,3 +1,6 @@
+import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/network/connectivity_service.dart';
+import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/repositories/user_repository.dart';
@@ -14,6 +17,19 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   final db = ref.watch(databaseProvider);
   return UserRepository(db);
+});
+
+final appDatabaseProvider = Provider<AppDatabase>((ref) => AppDatabase());
+
+final queueManagerProvider = Provider<QueueManager>((ref) {
+  final db = ref.watch(databaseProvider);
+  final api = ref.watch(apiClientProvider);
+  final connectivity = ref.watch(connectivityProvider);
+  return QueueManager(
+    db: db, 
+    api: api,
+    connectivity: connectivity,
+  );
 });
 
 // Auth initialization state
