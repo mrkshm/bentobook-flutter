@@ -1,8 +1,8 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/core/auth/auth_state.dart';
 import 'dart:developer' as dev;
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -68,8 +68,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     try {
       final users = await userRepository.getAllUsers();
       setState(() {
-        _testResult = 'Found ${users.length} users:\n' +
-            users.map((user) => '- ${user.displayName ?? user.email} (${user.email})').join('\n');
+        _testResult = 'Found ${users.length} users:\n'
+            '${users.map((user) => '- ${user.displayName ?? user.email} (${user.email})').join('\n')}';
       });
     } catch (e) {
       setState(() {
@@ -78,13 +78,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  void _handleLogout() async {
-    dev.log('DashboardScreen: Logging out');
-    await ref.read(navigationProvider.notifier).logout();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final authState = ref.watch(authServiceProvider);
     final user = authState.maybeMap(
       authenticated: (state) => state.user,
@@ -92,34 +88,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (user == null) {
-      return const Center(child: CupertinoActivityIndicator());
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     dev.log('DashboardScreen: Building with user: ${user.attributes.email}');
     
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Dashboard'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                dev.log('Dashboard: Going to profile');
-                ref.read(navigationProvider.notifier).startTransition('/profile');
-              },
-              child: const Icon(CupertinoIcons.person_circle),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _handleLogout,
-              child: const Text('Logout'),
-            ),
-          ],
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        centerTitle: true,
+        backgroundColor: theme.colorScheme.surface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () {
+              dev.log('Dashboard: Going to profile');
+              context.go('/app/profile');
+            },
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+            onPressed: () async {
+              dev.log('Dashboard: Logging out');
+              await ref.read(authServiceProvider.notifier).logout();
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -130,8 +130,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 const SizedBox(height: 24),
                 Text(
                   'Welcome, ${user.attributes.email}!',
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -140,30 +139,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: CupertinoButton.filled(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: _showCurrentUser,
                         child: const Text('Show Current User'),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: CupertinoButton.filled(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: _showAllUsers,
                         child: const Text('Show All Users'),
                       ),
                     ),
                   ],
                 ),
-                if (_testResult.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _testResult,
-                    style: const TextStyle(
-                      fontFamily: 'Menlo',
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 24),
+                Text(
+                  _testResult,
+                  style: theme.textTheme.bodyMedium,
+                ),
               ],
             ),
           ),

@@ -1,7 +1,7 @@
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/api/models/user.dart' as api;
 import 'package:bentobook/core/database/tables/sync_status.dart';
-import 'package:drift/drift.dart';
+import 'package:bentobook/core/theme/theme_persistence.dart';
 import 'dart:developer' as dev;
 
 class UserRepository {
@@ -46,7 +46,11 @@ class UserRepository {
           firstName: profile?.firstName,
           lastName: profile?.lastName,
           about: profile?.about ?? '',
-          preferredTheme: profile?.preferredTheme ?? 'light',
+          preferredTheme: (() {
+            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
+            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
+            return theme;
+          })(),
           preferredLanguage: profile?.preferredLanguage ?? 'en',
           avatarUrls: avatarUrls,
           createdAt: existingUser.createdAt,
@@ -63,7 +67,11 @@ class UserRepository {
           firstName: profile?.firstName,
           lastName: profile?.lastName,
           about: profile?.about ?? '',
-          preferredTheme: profile?.preferredTheme ?? 'light',
+          preferredTheme: (() {
+            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
+            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
+            return theme;
+          })(),
           preferredLanguage: profile?.preferredLanguage ?? 'en',
           avatarUrls: avatarUrls,
         );

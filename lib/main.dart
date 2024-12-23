@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flex_color_scheme/flex_color_scheme.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:bentobook/router.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/theme/theme.dart';
+import 'package:bentobook/core/theme/theme_provider.dart';
 
 void main() {
   runApp(
@@ -31,17 +31,14 @@ class _BentoBookAppState extends ConsumerState<BentoBookApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeProvider);
+    final colorScheme = ref.watch(colorSchemeProvider);
 
     return MaterialApp.router(
       title: 'BentoBook',
-      theme: FlexThemeData.light(
-        scheme: FlexScheme.blue,
-        textTheme: GoogleFonts.interTextTheme(),
-      ),
-      darkTheme: FlexThemeData.dark(
-        scheme: FlexScheme.blue,
-        textTheme: GoogleFonts.interTextTheme(),
-      ),
+      theme: AppTheme.light(scheme: colorScheme),
+      darkTheme: AppTheme.dark(scheme: colorScheme),
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

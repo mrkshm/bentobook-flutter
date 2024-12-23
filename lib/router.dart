@@ -1,147 +1,118 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:page_transition/page_transition.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/screens/app/dashboard_screen.dart';
 import 'package:bentobook/screens/public/auth_screen.dart';
 import 'package:bentobook/screens/public/landing_screen.dart';
 import 'package:bentobook/screens/public/loading_screen.dart';
-import 'dart:developer' as dev;
-import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/screens/app/profile_screen.dart';
+import 'dart:developer' as dev;
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-// Provider to control router redirects
-final routerRedirectEnabledProvider = StateProvider<bool>((ref) => true);
-
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
-  final navState = ref.watch(navigationProvider);
-  final authInitState = ref.watch(authInitStateProvider);
+  String? previousLocation;
   
+  Page<void> buildTransitionPage(BuildContext context, GoRouterState state, Widget child) {
+    final isBack = previousLocation != null && 
+        previousLocation!.length > state.matchedLocation.length;
+    previousLocation = state.matchedLocation;
+
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return PageTransition(
+          type: isBack 
+            ? PageTransitionType.leftToRight 
+            : PageTransitionType.rightToLeft,
+          duration: const Duration(milliseconds: 300),
+          reverseDuration: const Duration(milliseconds: 300),
+          child: child,
+        ).buildTransitions(
+          context,
+          animation,
+          secondaryAnimation,
+          child,
+        );
+      },
+    );
+  }
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',  // Always start at root
+    initialLocation: '/',
+    debugLogDiagnostics: true,
     redirect: (context, state) {
       dev.log('Router: Checking redirect - path: ${state.matchedLocation}');
-      dev.log('Router: Auth init state: $authInitState');
-      dev.log('Router: Auth state: $authState');
-      
-      // Get navigation state
-      final navState = ref.read(navigationProvider);
-      dev.log('Router: Navigation state - target: ${navState.targetLocation}, transitioning: ${navState.isTransitioning}');
-      
-      // If we're transitioning, go to target location
-      if (navState.isTransitioning && state.matchedLocation != navState.targetLocation) {
-        dev.log('Router: Following navigation transition to ${navState.targetLocation}');
-        return navState.targetLocation;
+
+      // Handle loading state
+      if (authState.maybeMap(
+        initial: (_) => true,
+        loading: (_) => true,
+        orElse: () => false,
+      )) {
+        return '/public/loading';
       }
-      
-      // Handle auth initialization states
-      switch (authInitState) {
-        case AuthInitState.notStarted:
-        case AuthInitState.inProgress:
-          dev.log('Router: Showing loading screen');
-          if (state.matchedLocation != '/loading') {
-            return '/loading';
-          }
-          return null;
-          
-        case AuthInitState.error:
-          dev.log('Router: Auth init error, going to auth');
-          return '/auth';
-          
-        case AuthInitState.completed:
-          // Skip redirects during transitions
-          if (navState.isTransitioning) {
-            dev.log('Router: In transition, skipping redirect');
-            return null;
-          }
 
-          final isAuthenticated = authState.maybeMap(
-            authenticated: (_) => true,
-            orElse: () => false,
-          );
-          
-          dev.log('Router: Auth completed - isAuthenticated: $isAuthenticated');
+      final isAuthenticated = authState.maybeMap(
+        authenticated: (_) => true,
+        orElse: () => false,
+      );
 
-          // If authenticated, always go to dashboard except if already there
-          if (isAuthenticated) {
-            if (!state.matchedLocation.startsWith('/dashboard')) {
-              dev.log('Router: Redirecting to /dashboard - authenticated user');
-              return '/dashboard';
-            }
-            return null;
-          }
-
-          // Not authenticated - only allow public routes
-          if (!state.matchedLocation.startsWith('/auth') && 
-              !state.matchedLocation.startsWith('/loading') &&
-              state.matchedLocation != '/') {
-            dev.log('Router: Redirecting to /auth - not authenticated');
-            return '/auth';
-          }
-
-          dev.log('Router: No redirect needed');
-          return null;
+      // Always redirect authenticated users to dashboard if they're in public area
+      if (isAuthenticated && state.matchedLocation.startsWith('/public')) {
+        dev.log('Router: Authenticated user in public area - redirecting to dashboard');
+        return '/app/dashboard';
       }
+
+      // Redirect unauthenticated users to landing if they try to access app area
+      if (!isAuthenticated && state.matchedLocation.startsWith('/app')) {
+        dev.log('Router: Unauthenticated user in app area - redirecting to landing');
+        return '/public/landing';
+      }
+
+      return null;
     },
     routes: [
-      // Public routes
       GoRoute(
         path: '/',
+        redirect: (_, __) => '/public/landing',
+      ),
+      // Public routes
+      GoRoute(
+        path: '/public/landing',
         builder: (context, state) => const LandingScreen(),
       ),
       GoRoute(
-        path: '/auth',
+        path: '/public/auth',
         builder: (context, state) => const AuthScreen(),
       ),
       GoRoute(
-        path: '/loading',
+        path: '/public/loading',
         builder: (context, state) => const LoadingScreen(),
       ),
-      
-      // Protected routes
+      // App routes
       GoRoute(
-        path: '/dashboard',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const DashboardScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween<Offset>(
-                    begin: const Offset(-1.0, 0.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOut)),
-                ),
-                child: child,
-              );
-            },
-          );
-        },
+        path: '/app/dashboard',
+        pageBuilder: (context, state) => buildTransitionPage(
+          context,
+          state,
+          const DashboardScreen(),
+        ),
       ),
       GoRoute(
-        path: '/profile',
-        pageBuilder: (context, state) {
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: const ProfileScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween<Offset>(
-                    begin: const Offset(1.0, 0.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeInOut)),
-                ),
-                child: child,
-              );
-            },
-          );
-        },
+        path: '/app/profile',
+        pageBuilder: (context, state) => buildTransitionPage(
+          context,
+          state,
+          const ProfileScreen(),
+        ),
       ),
     ],
   );

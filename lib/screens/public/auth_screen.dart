@@ -1,10 +1,10 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/features/auth/widgets/login_form.dart';
 import 'package:bentobook/features/auth/widgets/signup_form.dart';
 import 'dart:developer' as dev;
+
+import 'package:go_router/go_router.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -18,43 +18,49 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Login / Sign Up'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login / Sign Up'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
           onPressed: () {
             dev.log('Auth: Going back to landing');
-            ref.read(navigationProvider.notifier).startTransition('/');
+            context.go('/');
           },
-          child: const Icon(CupertinoIcons.back),
         ),
+        centerTitle: true,
+        backgroundColor: theme.colorScheme.surface,
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             children: [
               const SizedBox(height: 16),
-              CupertinoSlidingSegmentedControl<int>(
-                groupValue: _selectedSegment,
-                onValueChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedSegment = value;
-                    });
-                  }
-                },
-                children: const {
-                  0: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20),
-                    child: Text('Login'),
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment<int>(
+                    value: 0,
+                    label: Text('Login'),
                   ),
-                  1: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20),
-                    child: Text('Sign Up'),
+                  ButtonSegment<int>(
+                    value: 1,
+                    label: Text('Sign Up'),
                   ),
+                ],
+                selected: {_selectedSegment},
+                onSelectionChanged: (Set<int> newSelection) {
+                  setState(() {
+                    _selectedSegment = newSelection.first;
+                  });
                 },
+                style: ButtonStyle(
+                  side: WidgetStateProperty.all(BorderSide(
+                    color: theme.colorScheme.primary.withAlpha(128), // 0.5 opacity = 128 in alpha (255 * 0.5)
+                  )),
+                ),
               ),
               const SizedBox(height: 32),
               Expanded(
