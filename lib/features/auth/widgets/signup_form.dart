@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:bentobook/features/auth/models/auth_form_state.dart';
 import 'package:bentobook/features/auth/validators.dart';
 import 'package:bentobook/features/auth/widgets/shared/auth_text_field.dart';
+import "dart:developer" as dev;
 
 class SignupForm extends StatefulWidget {
   const SignupForm({super.key});
@@ -16,7 +17,7 @@ class _SignupFormState extends State<SignupForm> {
 
   void _validateEmail(String value) {
     final error = AuthValidators.validateEmail(value);
-    
+
     final newState = SignupFormState(
       email: value,
       password: _formState.password,
@@ -25,7 +26,7 @@ class _SignupFormState extends State<SignupForm> {
       passwordError: _formState.passwordError,
       passwordConfirmError: _formState.passwordConfirmError,
     );
-    
+
     setState(() {
       _formState = newState;
     });
@@ -33,11 +34,13 @@ class _SignupFormState extends State<SignupForm> {
 
   void _validatePassword(String value) {
     final error = AuthValidators.validatePassword(value);
-    
+
     // When password changes, we need to revalidate the confirmation
-    final confirmError = value.isEmpty ? null : 
-      AuthValidators.validatePasswordConfirmation(_formState.passwordConfirm, value);
-    
+    final confirmError = value.isEmpty
+        ? null
+        : AuthValidators.validatePasswordConfirmation(
+            _formState.passwordConfirm, value);
+
     final newState = SignupFormState(
       email: _formState.email,
       password: value,
@@ -46,15 +49,16 @@ class _SignupFormState extends State<SignupForm> {
       passwordError: error,
       passwordConfirmError: confirmError,
     );
-    
+
     setState(() {
       _formState = newState;
     });
   }
 
   void _validatePasswordConfirm(String value) {
-    final error = AuthValidators.validatePasswordConfirmation(value, _formState.password);
-    
+    final error =
+        AuthValidators.validatePasswordConfirmation(value, _formState.password);
+
     final newState = SignupFormState(
       email: _formState.email,
       password: _formState.password,
@@ -63,7 +67,7 @@ class _SignupFormState extends State<SignupForm> {
       passwordError: _formState.passwordError,
       passwordConfirmError: error,
     );
-    
+
     setState(() {
       _formState = newState;
     });
@@ -71,16 +75,16 @@ class _SignupFormState extends State<SignupForm> {
 
   void _handleSubmit() {
     if (_formState.isValid) {
-      print('Signing up with:');
-      print('  email: ${_formState.email}');
-      print('  password length: ${_formState.password.length}');
+      dev.log('Signing up with:');
+      dev.log('  email: ${_formState.email}');
+      dev.log('  password length: ${_formState.password.length}');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -107,13 +111,13 @@ class _SignupFormState extends State<SignupForm> {
         const SizedBox(height: 24),
         CupertinoButton.filled(
           onPressed: _formState.isValid ? _handleSubmit : null,
-          disabledColor: theme.colorScheme.primary.withOpacity(0.5),
+          disabledColor: theme.colorScheme.primary.withAlpha(128),
           child: Text(
             'Sign Up',
             style: TextStyle(
-              color: _formState.isValid 
-                ? theme.colorScheme.onPrimary
-                : theme.colorScheme.onPrimary.withOpacity(0.7),
+              color: _formState.isValid
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onPrimary.withAlpha(179),
             ),
           ),
         ),

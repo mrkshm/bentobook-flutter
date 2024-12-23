@@ -3,11 +3,25 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'user.freezed.dart';
 part 'user.g.dart';
 
+class DateTimeConverter implements JsonConverter<DateTime, String> {
+  const DateTimeConverter();
+
+  @override
+  DateTime fromJson(String json) {
+    return DateTime.parse(json.replaceAll(' ', 'T'));
+  }
+
+  @override
+  String toJson(DateTime date) {
+    return date.toUtc().toString();
+  }
+}
+
 @freezed
 class User with _$User {
   const factory User({
     @JsonKey(fromJson: _intFromJson) required String id,
-    String? type,  // Make nullable
+    String? type, // Make nullable
     required UserAttributes attributes,
   }) = _User;
 
@@ -25,7 +39,7 @@ class UserAttributes with _$UserAttributes {
     @JsonKey(name: 'last_name') String? lastName,
     @JsonKey(name: 'preferred_theme') String? preferredTheme,
     UserProfile? profile,
-    @JsonKey(name: 'updated_at') DateTime? updatedAt,  // Add this line
+    @DateTimeConverter() DateTime? updatedAt,
   }) = _UserAttributes;
 
   factory UserAttributes.fromJson(Map<String, dynamic> json) =>
@@ -43,8 +57,8 @@ class UserProfile with _$UserProfile {
     @JsonKey(name: 'display_name') String? displayName,
     @JsonKey(name: 'preferred_theme') String? preferredTheme,
     @JsonKey(name: 'preferred_language') String? preferredLanguage,
-    @JsonKey(name: 'created_at') String? createdAt,
-    @JsonKey(name: 'updated_at') String? updatedAt,
+    @JsonKey(name: 'created_at') @DateTimeConverter() DateTime? createdAt,
+    @JsonKey(name: 'updated_at') @DateTimeConverter() DateTime? updatedAt,
     @JsonKey(name: 'avatar_urls') AvatarUrls? avatarUrls,
   }) = _UserProfile;
 

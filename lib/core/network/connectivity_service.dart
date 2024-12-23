@@ -6,9 +6,9 @@ import 'dart:developer' as dev;
 class ConnectivityService {
   final Connectivity _connectivity;
   StreamSubscription? _subscription;
-  
-  ConnectivityService({Connectivity? connectivity}) 
-    : _connectivity = connectivity ?? Connectivity() {
+
+  ConnectivityService({Connectivity? connectivity})
+      : _connectivity = connectivity ?? Connectivity() {
     _initConnectivity();
   }
 
@@ -20,12 +20,12 @@ class ConnectivityService {
 
   Future<bool> hasConnection() async {
     final result = await _connectivity.checkConnectivity();
-    return result != ConnectivityResult.none;
+    return !result.contains(ConnectivityResult.none);
   }
 
   Stream<bool> get onConnectivityChanged {
     return _connectivity.onConnectivityChanged
-        .map((result) => result != ConnectivityResult.none);
+        .map((result) => !result.contains(ConnectivityResult.none));
   }
 
   void dispose() {

@@ -13,22 +13,23 @@ import 'theme_persistence.dart';
 
 abstract class BaseThemeNotifier extends StateNotifier<ThemeMode> {
   BaseThemeNotifier(super.initial);
-  
+
   void setTheme(ThemeMode theme);
 }
 
 class NotAuthenticatedThemeNotifier extends BaseThemeNotifier {
   NotAuthenticatedThemeNotifier() : super(ThemeMode.system);
-  
+
   @override
   void setTheme(ThemeMode theme) {
     state = theme;
   }
 }
 
-final themeProvider = StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
+final themeProvider =
+    StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
   final authState = ref.watch(authServiceProvider);
-  
+
   // Return system theme notifier if not authenticated
   if (!authState.maybeMap(
     authenticated: (_) => true,
@@ -41,11 +42,11 @@ final themeProvider = StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) 
     authenticated: (state) => state.user,
     orElse: () => throw StateError('User must be authenticated'),
   );
-  
+
   final db = ref.watch(databaseProvider);
   final api = ref.watch(apiClientProvider);
   final queueManager = ref.watch(queueManagerProvider);
-  
+
   return ThemeNotifier(
     db: db,
     api: api,
@@ -65,19 +66,40 @@ class ThemeNotifier extends BaseThemeNotifier {
     required this.api,
     required this.queueManager,
     required this.userEmail,
-  }) : super(ThemeMode.system);
+  }) : super(ThemeMode.system) {
+    _loadStoredTheme();
+  }
+
+  Future<void> _loadStoredTheme() async {
+    try {
+      final user = await db.getUserByEmail(userEmail);
+      if (user != null) {
+        state = user.preferredTheme;
+        dev.log('ThemeNotifier: Loaded stored theme: ${user.preferredTheme}');
+      }
+    } catch (e) {
+      dev.log('ThemeNotifier: Error loading stored theme', error: e);
+    }
+  }
 
   @override
   Future<void> setTheme(ThemeMode theme) async {
     state = theme;
     dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
-    
+
     try {
-      await db.updateUserTheme(userEmail, theme);
-      dev.log('ThemeNotifier: Updated theme in database');
-      
+      final user = await db.getUserByEmail(userEmail);
+      if (user != null) {
+        await db.updateUser(user.copyWith(
+          preferredTheme: theme,
+          updatedAt: DateTime.now(),
+        ));
+        dev.log('ThemeNotifier: Updated theme in database');
+      }
+
       try {
-        await api.updateProfile(preferredTheme: ThemePersistence.themeToString(theme));
+        await api.updateProfile(
+            preferredTheme: ThemePersistence.themeToString(theme));
         dev.log('ThemeNotifier: Synced theme with API');
       } catch (e) {
         dev.log('ThemeNotifier: API sync failed, queueing operation');
@@ -93,8 +115,10 @@ class ThemeNotifier extends BaseThemeNotifier {
   }
 
   void toggleTheme() {
-    final newTheme = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    dev.log('ThemeNotifier: Toggling theme from ${state.toString()} to ${newTheme.toString()}');
+    final newTheme =
+        state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    dev.log(
+        'ThemeNotifier: Toggling theme from ${state.toString()} to ${newTheme.toString()}');
     setTheme(newTheme);
   }
 
@@ -118,6 +142,7 @@ class ColorSchemeNotifier extends StateNotifier<FlexScheme> {
   }
 }
 
-final colorSchemeProvider = StateNotifierProvider<ColorSchemeNotifier, FlexScheme>((ref) {
+final colorSchemeProvider =
+    StateNotifierProvider<ColorSchemeNotifier, FlexScheme>((ref) {
   return ColorSchemeNotifier();
 });

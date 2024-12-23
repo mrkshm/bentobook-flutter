@@ -22,7 +22,7 @@ class AuthTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -35,14 +35,14 @@ class AuthTextField extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             border: Border.all(
-              color: errorText != null 
-                ? theme.colorScheme.error
-                : theme.colorScheme.outline,
+              color: errorText != null
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.outline,
             ),
             borderRadius: BorderRadius.circular(8),
           ),
           placeholderStyle: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
+            color: theme.colorScheme.onSurface.withAlpha(128),
           ),
           style: TextStyle(
             color: theme.colorScheme.onSurface,

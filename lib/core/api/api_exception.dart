@@ -94,7 +94,6 @@ class ApiException implements Exception {
         );
 
       case DioExceptionType.unknown:
-      default:
         return ApiException(
           message: error.message ?? 'Unknown error occurred',
           statusCode: error.response?.statusCode,

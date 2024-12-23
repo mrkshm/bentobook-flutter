@@ -20,7 +20,7 @@ class LoadingScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Loading indicator
             const SizedBox(
               width: 24,
@@ -29,15 +29,16 @@ class LoadingScreen extends ConsumerWidget {
                 strokeWidth: 2.5,
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Loading message
             Text(
               'Loading...',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
+                    color:
+                        Theme.of(context).colorScheme.onSurface.withAlpha(179),
+                  ),
             ),
           ],
         ),
