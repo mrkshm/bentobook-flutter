@@ -1,2 +1,2 @@
-enum OperationStatus { pending, processing, completed, failed }
+enum OperationStatus { pending, processing, skipped, completed, failed }
 enum OperationType { themeUpdate }

@@ -80,4 +80,22 @@ extension QueueOperations on AppDatabase {
                       op.status.equals(OperationStatus.pending.name)))
       .get();
   }
+
+  Future<DateTime?> getLatestServerTimestamp(OperationType type) async {
+    final operation = await (select(operationQueue)
+      ..where((op) => op.operationType.equals(type.name))
+      ..orderBy([(op) => OrderingTerm.desc(op.serverTimestamp)]))
+      .getSingleOrNull();
+    return operation?.serverTimestamp;
+  }
+
+  Future<void> updateOperationServerTimestamp(
+    int id, 
+    DateTime serverTimestamp,
+  ) async {
+    await (update(operationQueue)..where((op) => op.id.equals(id)))
+      .write(OperationQueueCompanion(
+        serverTimestamp: Value(serverTimestamp),
+      ));
+  }
 }

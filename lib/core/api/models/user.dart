@@ -25,6 +25,7 @@ class UserAttributes with _$UserAttributes {
     @JsonKey(name: 'last_name') String? lastName,
     @JsonKey(name: 'preferred_theme') String? preferredTheme,
     UserProfile? profile,
+    @JsonKey(name: 'updated_at') DateTime? updatedAt,  // Add this line
   }) = _UserAttributes;
 
   factory UserAttributes.fromJson(Map<String, dynamic> json) =>

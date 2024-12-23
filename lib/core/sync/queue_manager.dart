@@ -57,11 +57,12 @@ class QueueManager {
 
     await db.into(db.operationQueue).insert(
       OperationQueueCompanion.insert(
-        operationType: type,  // Changed from type.toString()
+        operationType: type,
         payload: json.encode(payload),
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        status: OperationStatus.pending,  // Changed from .name
+        localTimestamp: DateTime.now(),
+        status: OperationStatus.pending,
         retryCount: const Value(0),
       ),
     );
@@ -135,12 +136,36 @@ class QueueManager {
     if (!await connectivity.hasConnection()) {
       throw Exception('No network connection');
     }
-    
+
     switch (OperationType.values.byName(op.operationType.name)) {
       case OperationType.themeUpdate:
-        final payload = json.decode(op.payload);
-        await api.updateProfile(preferredTheme: payload['theme']);
-        break;
+        try {
+          // Get current server state
+          final response = await api.getMe();
+          if (response.data == null) {
+            throw Exception('Server returned no data');
+          }
+
+          final serverTimestamp = response.data!.attributes.updatedAt;
+          
+          // Compare timestamps
+          if (serverTimestamp != null && serverTimestamp.isAfter(op.localTimestamp)) {
+            dev.log('QueueManager: Server has newer theme, skipping update');
+            await db.markOperationStatus(op.id, OperationStatus.skipped);
+            return;
+          }
+
+          // Process local change
+          final payload = json.decode(op.payload);
+          await api.updateProfile(preferredTheme: payload['theme']);
+          
+          // Update server timestamp
+          await db.updateOperationServerTimestamp(op.id, DateTime.now());
+          dev.log('QueueManager: Theme updated on server');
+        } catch (e) {
+          dev.log('QueueManager: Error processing theme update: $e');
+          rethrow;
+        }
     }
   }
 
