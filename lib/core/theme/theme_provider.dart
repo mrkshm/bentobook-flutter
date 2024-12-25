@@ -1,6 +1,9 @@
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/api/models/profile.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/database/database.dart';
+import 'package:bentobook/core/database/operations/user_operations.dart';
+import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/sync/operation_types.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:bentobook/core/theme/theme.dart';
@@ -85,27 +88,30 @@ class ThemeNotifier extends BaseThemeNotifier {
   @override
   Future<void> setTheme(ThemeMode theme) async {
     state = theme;
-    dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
-
+    final themeString = ThemePersistence.themeToString(theme);
+    
     try {
-      final user = await db.getUserByEmail(userEmail);
-      if (user != null) {
-        await db.updateUser(user.copyWith(
-          preferredTheme: theme,
-          updatedAt: DateTime.now(),
-        ));
-        dev.log('ThemeNotifier: Updated theme in database');
-      }
-
-      try {
+      if (await ConnectivityService().hasConnection()) {
+        // If online, update server directly
         await api.updateProfile(
-            preferredTheme: ThemePersistence.themeToString(theme));
-        dev.log('ThemeNotifier: Synced theme with API');
-      } catch (e) {
-        dev.log('ThemeNotifier: API sync failed, queueing operation');
+          request: ProfileUpdateRequest(
+            preferredTheme: themeString,
+          ),
+        );
+        
+        // Update local database
+        await db.updateUser(
+          await db.getUserByEmail(userEmail).then((user) => user!.copyWith(
+            preferredTheme: theme,
+            updatedAt: DateTime.now(),
+          )),
+        );
+        dev.log('ThemeNotifier: Updated theme in database');
+      } else {
+        // If offline, queue the update
         await queueManager.enqueueOperation(
           type: OperationType.themeUpdate,
-          payload: {'theme': ThemePersistence.themeToString(theme)},
+          payload: {'theme': themeString},
         );
       }
     } catch (e) {

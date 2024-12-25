@@ -1,4 +1,5 @@
 import 'package:bentobook/core/api/models/session_response.dart';
+import 'package:bentobook/core/api/models/profile.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/config/env_config.dart';
@@ -9,7 +10,7 @@ import 'api_endpoints.dart';
 import 'dart:developer' as dev;
 
 class ApiClient {
-  late final Dio _dio;
+  final Dio _dio;
   final EnvConfig config;
   String? _token;
   void Function()? onRefreshFailed;
@@ -17,7 +18,8 @@ class ApiClient {
   ApiClient({
     required this.config,
     this.onRefreshFailed,
-  }) : _dio = Dio(
+    Dio? dio,
+  }) : _dio = dio ?? Dio(
     BaseOptions(
       baseUrl: config.apiBaseUrl,
       connectTimeout: config.connectionTimeout,
@@ -52,8 +54,10 @@ class ApiClient {
                 return handler.resolve(await _dio.fetch(error.requestOptions));
               }
             } catch (e) {
-              // Token refresh failed
-              onRefreshFailed?.call();
+              dev.log('Failed to refresh token', error: e);
+              if (onRefreshFailed != null) {
+                onRefreshFailed!();
+              }
             }
           }
           return handler.next(error);
@@ -233,7 +237,38 @@ class ApiClient {
     }
   }
 
-  Future<ApiResponse<User>> updateProfile({String? preferredTheme}) async {
+  Future<ApiResponse<Profile>> updateProfile({
+    required ProfileUpdateRequest request,
+  }) async {
+    try {
+      dev.log('Updating profile');
+      final response = await _dio.put(
+        ApiEndpoints.updateProfile,
+        data: request.toJson(),
+      );
+      
+      return ApiResponse<Profile>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => Profile.fromJson(json as Map<String, dynamic>),
+      );
+    } on DioException catch (e) {
+      dev.log('Failed to update profile', error: e);
+      if (e.response?.statusCode == 422) {
+        throw ApiValidationException(message: 'Validation error: ${e.response?.data['errors']}', statusCode: e.response?.statusCode);
+      }
+      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) {
+        throw ApiNetworkException(message: 'Network error: ${e.message}', statusCode: e.response?.statusCode);
+      }
+      throw ApiException.fromDioError(e);
+    } catch (e) {
+      dev.log('Unexpected error while updating profile', error: e);
+      throw ApiException(message: 'Failed to update profile: $e');
+    }
+  }
+
+  Future<ApiResponse<User>> updateProfileOld({
+    String? preferredTheme,
+  }) async {
     try {
       final response = await _dio.patch(
         ApiEndpoints.updateProfile,

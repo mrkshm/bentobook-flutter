@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
 import 'package:bentobook/core/theme/theme.dart';
+import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -79,23 +80,30 @@ class ProfileScreen extends ConsumerWidget {
                       ],
                       selected: {themeMode},
                       onSelectionChanged: (Set<ThemeMode> selection) {
-                        ref.read(themeProvider.notifier).setTheme(selection.first);
+                        ref
+                            .read(themeProvider.notifier)
+                            .setTheme(selection.first);
                       },
                     ),
                   ),
                   ListTile(
                     title: const Text('Color Scheme'),
                     trailing: PopupMenuButton<String>(
-                      icon: Icon(Icons.palette_outlined, color: theme.colorScheme.primary),
+                      icon: Icon(Icons.palette_outlined,
+                          color: theme.colorScheme.primary),
                       position: PopupMenuPosition.under,
-                      itemBuilder: (context) => AppTheme.schemes.entries.map((scheme) =>
-                        PopupMenuItem(
-                          value: scheme.key,
-                          child: Text(scheme.key),
-                        ),
-                      ).toList(),
+                      itemBuilder: (context) => AppTheme.schemes.entries
+                          .map(
+                            (scheme) => PopupMenuItem(
+                              value: scheme.key,
+                              child: Text(scheme.key),
+                            ),
+                          )
+                          .toList(),
                       onSelected: (String schemeName) {
-                        ref.read(colorSchemeProvider.notifier).setSchemeByName(schemeName);
+                        ref
+                            .read(colorSchemeProvider.notifier)
+                            .setSchemeByName(schemeName);
                       },
                     ),
                     subtitle: Text(
@@ -124,21 +132,118 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      'User Information',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'User Information',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined, 
+                            color: theme.colorScheme.primary),
+                          onPressed: () {
+                            showModalBottomSheet(
+                              context: context,
+                              useRootNavigator: true,
+                              isScrollControlled: true,
+                              builder: (context) => const ProfileEditSheet(),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   ListTile(
                     title: const Text('Email'),
                     subtitle: Text(user.attributes.email),
                   ),
-                  if (user.attributes.profile?.displayName?.isNotEmpty ?? false)
+                  if (user.attributes.username?.isNotEmpty ?? false)
                     ListTile(
-                      title: const Text('Display Name'),
-                      subtitle: Text(user.attributes.profile!.displayName!),
+                      title: const Text('Username'),
+                      subtitle: Text(user.attributes.username!),
+                    ),
+                  if (user.attributes.firstName?.isNotEmpty ?? false)
+                    ListTile(
+                      title: const Text('First Name'),
+                      subtitle: Text(user.attributes.firstName!),
+                    ),
+                  if (user.attributes.lastName?.isNotEmpty ?? false)
+                    ListTile(
+                      title: const Text('Last Name'),
+                      subtitle: Text(user.attributes.lastName!),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Additional Info Card
+          if (user.attributes.profile?.about?.isNotEmpty ?? false)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        'About',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Text(
+                        user.attributes.profile!.about!,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Preferences Card
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      'Preferences',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  if (user.attributes.profile?.preferredLanguage != null)
+                    ListTile(
+                      title: const Text('Language'),
+                      subtitle:
+                          Text(user.attributes.profile!.preferredLanguage!),
                     ),
                 ],
               ),

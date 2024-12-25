@@ -37,6 +37,26 @@ class Profile with _$Profile {
 }
 
 @freezed
+class ProfileUpdateRequest with _$ProfileUpdateRequest {
+  const factory ProfileUpdateRequest({
+    @JsonKey(name: 'display_name')
+    String? displayName,
+    @JsonKey(name: 'first_name')
+    String? firstName,
+    @JsonKey(name: 'last_name')
+    String? lastName,
+    String? about,
+    @JsonKey(name: 'preferred_theme')
+    String? preferredTheme,
+    @JsonKey(name: 'preferred_language')
+    String? preferredLanguage,
+  }) = _ProfileUpdateRequest;
+
+  factory ProfileUpdateRequest.fromJson(Map<String, dynamic> json) =>
+      _$ProfileUpdateRequestFromJson(json);
+}
+
+@freezed
 class AvatarUrls with _$AvatarUrls {
   const factory AvatarUrls({
     required String thumbnail,

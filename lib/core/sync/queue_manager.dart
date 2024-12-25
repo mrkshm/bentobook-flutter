@@ -5,6 +5,7 @@ import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/extensions.dart';
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/api/models/profile.dart';
 import 'operation_types.dart';
 import 'dart:developer' as dev;
 
@@ -157,7 +158,11 @@ class QueueManager {
 
           // Process local change
           final payload = json.decode(op.payload);
-          await api.updateProfile(preferredTheme: payload['theme']);
+          await api.updateProfile(
+            request: ProfileUpdateRequest(
+              preferredTheme: payload['theme'],
+            ),
+          );
           
           // Update server timestamp
           await db.updateOperationServerTimestamp(op.id, DateTime.now());

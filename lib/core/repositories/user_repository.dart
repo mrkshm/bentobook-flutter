@@ -1,5 +1,6 @@
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/api/models/user.dart' as api;
+import 'package:bentobook/core/database/operations/user_operations.dart';
 import 'package:bentobook/core/database/tables/sync_status.dart';
 import 'package:bentobook/core/theme/theme_persistence.dart';
 import 'dart:developer' as dev;
@@ -39,7 +40,7 @@ class UserRepository {
       if (existingUser != null) {
         dev.log('UserRepository: Updating existing user');
         await _db.updateUser(User(
-          id: existingUser.id,  // Keep local ID
+          id: existingUser.id, // Keep local ID
           email: email,
           username: profile?.username,
           displayName: profile?.displayName,
@@ -47,8 +48,10 @@ class UserRepository {
           lastName: profile?.lastName,
           about: profile?.about ?? '',
           preferredTheme: (() {
-            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
-            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
+            final theme =
+                ThemePersistence.stringToTheme(profile?.preferredTheme);
+            dev.log(
+                'UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
             return theme;
           })(),
           preferredLanguage: profile?.preferredLanguage ?? 'en',
@@ -68,8 +71,10 @@ class UserRepository {
           lastName: profile?.lastName,
           about: profile?.about ?? '',
           preferredTheme: (() {
-            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
-            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
+            final theme =
+                ThemePersistence.stringToTheme(profile?.preferredTheme);
+            dev.log(
+                'UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
             return theme;
           })(),
           preferredLanguage: profile?.preferredLanguage ?? 'en',
@@ -88,7 +93,8 @@ class UserRepository {
         throw Exception('Failed to verify user save');
       }
     } catch (e, stackTrace) {
-      dev.log('UserRepository: Error saving user', error: e, stackTrace: stackTrace);
+      dev.log('UserRepository: Error saving user',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -128,7 +134,8 @@ class UserRepository {
     dev.log('UserRepository: Getting user by email: $email');
     final user = await _db.getUserByEmail(email);
     if (user != null) {
-      dev.log('UserRepository: Found user: ${user.email} (${user.displayName})');
+      dev.log(
+          'UserRepository: Found user: ${user.email} (${user.displayName})');
     } else {
       dev.log('UserRepository: No user found for email: $email');
     }
