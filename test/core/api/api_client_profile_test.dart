@@ -9,6 +9,7 @@ import 'package:mocktail/mocktail.dart';
 
 class MockInterceptors extends Mock implements Interceptors {}
 class MockDio extends Mock implements Dio {
+  @override
   final interceptors = Interceptors();
 }
 class MockResponse extends Mock implements Response {}

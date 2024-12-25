@@ -15,10 +15,19 @@ class ProfileEditSheet extends ConsumerStatefulWidget {
 class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   static const _minUsernameLength = 3;
   static const _maxUsernameLength = 20;
+  static const _maxNameLength = 50;
+  static const _maxAboutLength = 500;
   Timer? _debounceTimer;
   String? _usernameError;
-  bool _isUsernameFocused = false;
+  String? _firstNameError;
+  String? _lastNameError;
+  String? _aboutError;
   static final _usernameRegex = RegExp(r'^[a-zA-Z0-9_]+$');
+  static final _nameRegex = RegExp(r"^[a-zA-Z\s\-']+$");
+  bool _isUsernameFocused = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOnline = true;
+  bool _isSaving = false;
 
   late TextEditingController _usernameController;
   late TextEditingController _firstNameController;
@@ -44,6 +53,29 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
     return null;
   }
 
+  String? _validateName(String? value, String fieldName) {
+    if (value == null || value.isEmpty) {
+      return null; // Names are optional
+    }
+    if (value.length > _maxNameLength) {
+      return '$fieldName must be less than $_maxNameLength characters';
+    }
+    if (!_nameRegex.hasMatch(value)) {
+      return '$fieldName can only contain letters, spaces, hyphens, and apostrophes';
+    }
+    return null;
+  }
+
+  String? _validateAbout(String? value) {
+    if (value == null || value.isEmpty) {
+      return null; // About is optional
+    }
+    if (value.length > _maxAboutLength) {
+      return 'About must be less than $_maxAboutLength characters';
+    }
+    return null;
+  }
+
   void _onUsernameChanged() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
@@ -54,6 +86,121 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         _onFieldChanged();
       }
     });
+  }
+
+  void _onFieldChanged() {
+    final user = ref.read(authServiceProvider).maybeMap(
+          authenticated: (state) => state.user,
+          orElse: () => null,
+        );
+    
+    if (user == null) return;
+
+    final hasChanges = 
+      (_usernameController.text != (user.attributes.username ?? '')) ||
+      (_firstNameController.text != (user.attributes.firstName ?? '')) ||
+      (_lastNameController.text != (user.attributes.lastName ?? '')) ||
+      (_aboutController.text != (user.attributes.profile?.about ?? ''));
+
+    if (hasChanges != _hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = hasChanges;
+      });
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    final firstNameError = _validateName(_firstNameController.text, 'First name');
+    final lastNameError = _validateName(_lastNameController.text, 'Last name');
+    final aboutError = _validateAbout(_aboutController.text);
+
+    setState(() {
+      _firstNameError = firstNameError;
+      _lastNameError = lastNameError;
+      _aboutError = aboutError;
+    });
+
+    if (_usernameError != null || firstNameError != null || lastNameError != null || aboutError != null) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSaving = true;
+      });
+
+      // Fake save with delay
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Randomly throw error sometimes to test error handling
+      if (DateTime.now().second.isEven) {
+        throw Exception('Random save error for testing');
+      }
+
+      // Real save code (commented out)
+      // await ref.read(authServiceProvider.notifier).updateProfile(
+      //   username: _usernameController.text,
+      //   firstName: _firstNameController.text,
+      //   lastName: _lastNameController.text,
+      //   about: _aboutController.text,
+      // );
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to save changes: ${e.toString()}',
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Dismiss',
+              textColor: Theme.of(context).colorScheme.onError,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard Changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldPop ?? false;
   }
 
   @override
@@ -83,10 +230,25 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         }
       });
     });
+
+    // Initialize connectivity status
+    Connectivity().checkConnectivity().then((List<ConnectivityResult> results) {
+      setState(() {
+        _isOnline = !results.contains(ConnectivityResult.none);
+      });
+    });
+
+    // Listen for connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      setState(() {
+        _isOnline = !results.contains(ConnectivityResult.none);
+      });
+    });
   }
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _debounceTimer?.cancel();
     _usernameController.dispose();
     _firstNameController.dispose();
@@ -97,51 +259,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
     _lastNameFocusNode.dispose();
     _aboutFocusNode.dispose();
     super.dispose();
-  }
-
-  void _onFieldChanged() {
-    final user = ref.read(authServiceProvider).maybeMap(
-          authenticated: (state) => state.user,
-          orElse: () => null,
-        );
-    
-    if (user == null) return;
-
-    final hasChanges = 
-      (_usernameController.text != (user.attributes.username ?? '')) ||
-      (_firstNameController.text != (user.attributes.firstName ?? '')) ||
-      (_lastNameController.text != (user.attributes.lastName ?? '')) ||
-      (_aboutController.text != (user.attributes.profile?.about ?? ''));
-
-    if (hasChanges != _hasUnsavedChanges) {
-      setState(() {
-        _hasUnsavedChanges = hasChanges;
-      });
-    }
-  }
-
-  Future<bool> _onWillPop() async {
-    if (!_hasUnsavedChanges) return true;
-
-    final shouldPop = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Discard Changes?'),
-        content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
-    );
-
-    return shouldPop ?? false;
   }
 
   @override
@@ -155,9 +272,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
     if (user == null) {
       return const SizedBox.shrink();
     }
-
-    final connectivityResult = Connectivity().checkConnectivity();
-    final isOnline = (connectivityResult != ConnectivityResult.none);
 
     return PopScope<bool>(
       canPop: !_hasUnsavedChanges,
@@ -241,12 +355,15 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                   TextFormField(
                     controller: _usernameController,
                     focusNode: _usernameFocusNode,
+                    enabled: _isOnline,
                     decoration: InputDecoration(
                       labelText: 'Username',
                       errorText: _usernameError,
-                      helperText: _usernameError == null 
-                          ? 'Your unique username'
-                          : null,
+                      helperText: !_isOnline 
+                          ? 'Internet connection required to change username'
+                          : _usernameError == null && _isUsernameFocused
+                              ? 'Your unique username'
+                              : null,
                       prefixIcon: const Icon(Icons.person_outline),
                       border: const OutlineInputBorder(),
                     ),
@@ -261,47 +378,70 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                   TextFormField(
                     controller: _firstNameController,
                     focusNode: _firstNameFocusNode,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'First Name',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
+                      errorText: _firstNameError,
+                      helperText: 'Optional',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: const OutlineInputBorder(),
                     ),
-                    onChanged: (_) => _onFieldChanged(),
+                    onChanged: (value) {
+                      setState(() {
+                        _firstNameError = _validateName(value, 'First name');
+                      });
+                      _onFieldChanged();
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _lastNameController,
                     focusNode: _lastNameFocusNode,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Last Name',
-                      prefixIcon: Icon(Icons.person_outline),
-                      border: OutlineInputBorder(),
+                      errorText: _lastNameError,
+                      helperText: 'Optional',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: const OutlineInputBorder(),
                     ),
-                    onChanged: (_) => _onFieldChanged(),
+                    onChanged: (value) {
+                      setState(() {
+                        _lastNameError = _validateName(value, 'Last name');
+                      });
+                      _onFieldChanged();
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _aboutController,
                     focusNode: _aboutFocusNode,
                     maxLines: 3,
-                    decoration: const InputDecoration(
+                    maxLength: _maxAboutLength,
+                    decoration: InputDecoration(
                       labelText: 'About',
-                      helperText: 'Tell us about yourself',
+                      errorText: _aboutError,
+                      helperText: 'Optional - Tell us about yourself',
                       alignLabelWithHint: true,
-                      prefixIcon: Icon(Icons.description_outlined),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.description_outlined),
+                      border: const OutlineInputBorder(),
                     ),
-                    onChanged: (_) => _onFieldChanged(),
+                    onChanged: (value) {
+                      setState(() {
+                        _aboutError = _validateAbout(value);
+                      });
+                      _onFieldChanged();
+                    },
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: _hasUnsavedChanges
-                        ? () {
-                            // TODO: Implement save functionality
-                          }
-                        : null,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Save Changes'),
+                    onPressed: _hasUnsavedChanges && !_isSaving ? _saveChanges : null,
+                    icon: _isSaving 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
                   ),
                   const SizedBox(height: 8),
                 ],
