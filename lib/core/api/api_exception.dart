@@ -108,11 +108,9 @@ class ApiException implements Exception {
 }
 
 class ApiValidationException extends ApiException {
-  ApiValidationException({required String message, int? statusCode})
-      : super(message: message, statusCode: statusCode);
+  ApiValidationException({required super.message, super.statusCode});
 }
 
 class ApiNetworkException extends ApiException {
-  ApiNetworkException({required String message, int? statusCode})
-      : super(message: message, statusCode: statusCode);
+  ApiNetworkException({required super.message, super.statusCode});
 }
