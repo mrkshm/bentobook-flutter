@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/profile/profile_provider.dart';
 
 class ProfileEditSheet extends ConsumerStatefulWidget {
   const ProfileEditSheet({super.key});
@@ -129,23 +130,21 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         _isSaving = true;
       });
 
-      // Fake save with delay
-      await Future.delayed(const Duration(seconds: 2));
-      
-      // Randomly throw error sometimes to test error handling
-      if (DateTime.now().second.isEven) {
-        throw Exception('Random save error for testing');
-      }
-
-      // Real save code (commented out)
-      // await ref.read(authServiceProvider.notifier).updateProfile(
-      //   username: _usernameController.text,
-      //   firstName: _firstNameController.text,
-      //   lastName: _lastNameController.text,
-      //   about: _aboutController.text,
-      // );
+      await ref.read(profileProvider.notifier).updateProfile(
+        username: _usernameController.text,
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        about: _aboutController.text,
+      );
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
         Navigator.pop(context);
       }
     } catch (e) {

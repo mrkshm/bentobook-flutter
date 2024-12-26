@@ -35,7 +35,14 @@ extension ProfileOperations on AppDatabase {
       createdAt: existingProfile?.createdAt ?? now,
     );
 
-    await into(profiles).insertOnConflictUpdate(profile);
+    await into(profiles).insert(
+      profile,
+      onConflict: DoUpdate(
+        (old) => profile,
+        target: [profiles.userId],
+      ),
+    );
+    
     return (select(profiles)..where((p) => p.userId.equals(userId)))
         .getSingle();
   }

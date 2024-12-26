@@ -6,6 +6,7 @@ import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/api_exception.dart';
 import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/api/models/user.dart' as user_models;
 
 const _tokenKey = 'auth_token';
 
@@ -124,6 +125,18 @@ class AuthService extends StateNotifier<AuthState> {
       dev.log('AuthService: Registration error', error: e);
       state = AuthState.error(e is ApiException ? e.message : 'Registration failed');
     }
+  }
+
+  Future<void> updateUserProfile(user_models.User updatedUser) async {
+    state.maybeMap(
+      authenticated: (authState) {
+        state = AuthState.authenticated(
+          user: updatedUser,
+          token: authState.token,
+        );
+      },
+      orElse: () {},
+    );
   }
 
   Future<void> logout() async {

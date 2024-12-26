@@ -8,20 +8,31 @@ part 'profile.g.dart';
 @freezed
 class Profile with _$Profile {
   const factory Profile({
+    required String id,
+    required String type,
+    required ProfileAttributes attributes,
+  }) = _Profile;
+
+  factory Profile.fromJson(Map<String, dynamic> json) => _$ProfileFromJson(json);
+}
+
+@freezed
+class ProfileAttributes with _$ProfileAttributes {
+  const factory ProfileAttributes({
     required String username,
     @JsonKey(name: 'first_name') 
-    required String firstName,
+    String? firstName,
     @JsonKey(name: 'last_name') 
-    required String lastName,
-    required String about,
+    String? lastName,
+    String? about,
     @JsonKey(name: 'full_name') 
-    required String fullName,
+    String? fullName,
     @JsonKey(name: 'display_name') 
-    required String displayName,
+    String? displayName,
     @JsonKey(name: 'preferred_theme') 
-    required String preferredTheme,
+    String? preferredTheme,
     @JsonKey(name: 'preferred_language') 
-    required String preferredLanguage,
+    String? preferredLanguage,
     @JsonKey(name: 'created_at') 
     @UtcDateTimeConverter()
     required DateTime createdAt,
@@ -31,9 +42,9 @@ class Profile with _$Profile {
     required String email,
     @JsonKey(name: 'avatar_urls') 
     required AvatarUrls avatarUrls,
-  }) = _Profile;
+  }) = _ProfileAttributes;
 
-  factory Profile.fromJson(Map<String, dynamic> json) => _$ProfileFromJson(json);
+  factory ProfileAttributes.fromJson(Map<String, dynamic> json) => _$ProfileAttributesFromJson(json);
 }
 
 @freezed
@@ -66,5 +77,6 @@ class AvatarUrls with _$AvatarUrls {
     required String original,
   }) = _AvatarUrls;
 
-  factory AvatarUrls.fromJson(Map<String, dynamic> json) => _$AvatarUrlsFromJson(json);
+  factory AvatarUrls.fromJson(Map<String, dynamic> json) =>
+      _$AvatarUrlsFromJson(json);
 }
