@@ -20,31 +20,21 @@ class Profile with _$Profile {
 class ProfileAttributes with _$ProfileAttributes {
   const factory ProfileAttributes({
     required String username,
-    @JsonKey(name: 'first_name') 
-    String? firstName,
-    @JsonKey(name: 'last_name') 
-    String? lastName,
+    @JsonKey(name: 'first_name') String? firstName,
+    @JsonKey(name: 'last_name') String? lastName,
     String? about,
-    @JsonKey(name: 'full_name') 
-    String? fullName,
-    @JsonKey(name: 'display_name') 
-    String? displayName,
-    @JsonKey(name: 'preferred_theme') 
-    String? preferredTheme,
-    @JsonKey(name: 'preferred_language') 
-    String? preferredLanguage,
-    @JsonKey(name: 'created_at') 
-    @UtcDateTimeConverter()
-    required DateTime createdAt,
-    @JsonKey(name: 'updated_at') 
-    @UtcDateTimeConverter()
-    required DateTime updatedAt,
+    @JsonKey(name: 'full_name') String? fullName,
+    @JsonKey(name: 'display_name') String? displayName,
+    @JsonKey(name: 'preferred_theme') String? preferredTheme,
+    @JsonKey(name: 'preferred_language') String? preferredLanguage,
+    @JsonKey(name: 'created_at') @UtcDateTimeConverter() DateTime? createdAt,
+    @JsonKey(name: 'updated_at') @UtcDateTimeConverter() DateTime? updatedAt,
     required String email,
-    @JsonKey(name: 'avatar_urls') 
-    required AvatarUrls avatarUrls,
+    @JsonKey(name: 'avatar_urls') AvatarUrls? avatarUrls,
   }) = _ProfileAttributes;
 
-  factory ProfileAttributes.fromJson(Map<String, dynamic> json) => _$ProfileAttributesFromJson(json);
+  factory ProfileAttributes.fromJson(Map<String, dynamic> json) =>
+      _$ProfileAttributesFromJson(json);
 }
 
 @freezed
@@ -70,11 +60,11 @@ class ProfileUpdateRequest with _$ProfileUpdateRequest {
 @freezed
 class AvatarUrls with _$AvatarUrls {
   const factory AvatarUrls({
-    required String thumbnail,
-    required String small,
-    required String medium,
-    required String large,
-    required String original,
+    String? thumbnail,
+    String? small,
+    String? medium,
+    String? large,
+    String? original,
   }) = _AvatarUrls;
 
   factory AvatarUrls.fromJson(Map<String, dynamic> json) =>

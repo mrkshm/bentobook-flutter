@@ -1,4 +1,5 @@
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/auth/auth_state.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,10 +28,17 @@ final queueManagerProvider = Provider<QueueManager>((ref) {
   final db = ref.watch(databaseProvider);
   final api = ref.watch(apiClientProvider);
   final connectivity = ref.watch(connectivityProvider);
+  final authState = ref.watch(authServiceProvider);
+  final userId = authState.maybeMap(
+    authenticated: (state) => state.user.id,
+    orElse: () => null
+  );
+  
   return QueueManager(
     db: db, 
     api: api,
     connectivity: connectivity,
+    userId: userId
   );
 });
 
@@ -38,22 +46,27 @@ final queueManagerProvider = Provider<QueueManager>((ref) {
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final db = ref.watch(databaseProvider);
-  final authState = ref.watch(authServiceProvider);
-  final authService = ref.read(authServiceProvider.notifier);
-  return ProfileRepository(apiClient, db, authState, authService);
+  return ProfileRepository(apiClient, db);
 });
 
 final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
   final repository = ref.watch(profileRepositoryProvider);
   final notifier = ProfileNotifier(repository);
   
-  // Initialize profile from auth state
-  ref.read(authServiceProvider).maybeMap(
-    authenticated: (state) {
-      Future.microtask(() {
-        notifier.initializeProfile(state.user);
-      });
+  // Listen to auth state changes
+  ref.listen<AuthState>(
+    authServiceProvider,
+    (previous, next) {
+      next.maybeMap(
+        authenticated: (state) => notifier.initializeProfile(state.user.id),
+        orElse: () => notifier.clearProfile(),
+      );
     },
+  );
+  
+  // Initial state check
+  ref.read(authServiceProvider).maybeMap(
+    authenticated: (state) => notifier.initializeProfile(state.user.id),
     orElse: () {},
   );
   
@@ -90,6 +103,14 @@ class AuthInitController {
       
       final authService = _ref.read(authServiceProvider.notifier);
       await authService.initializeAuth();
+
+      // Initialize profile if auth was successful
+      _ref.read(authServiceProvider).maybeMap(
+        authenticated: (state) async {
+          await _ref.read(profileProvider.notifier).initializeProfile(state.user.id);
+        },
+        orElse: () {},
+      );
       
       _ref.read(authInitStateProvider.notifier).state = AuthInitState.completed;
     } catch (e) {

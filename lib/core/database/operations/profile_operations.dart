@@ -15,6 +15,7 @@ extension ProfileOperations on AppDatabase {
     String? about,
     String? firstName,
     String? lastName,
+    String? preferredTheme,
     String? preferredLanguage,
     String syncStatus = 'pending',
   }) async {
@@ -29,6 +30,7 @@ extension ProfileOperations on AppDatabase {
       about: Value(about),
       firstName: Value(firstName),
       lastName: Value(lastName),
+      preferredTheme: Value(preferredTheme ?? 'light'),
       preferredLanguage: Value(preferredLanguage ?? 'en'),
       syncStatus: Value(syncStatus),
       updatedAt: now,

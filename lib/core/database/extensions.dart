@@ -1,4 +1,5 @@
 import 'package:bentobook/core/api/models/user.dart' as api;
+import 'package:bentobook/core/api/models/profile.dart' as api;
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/theme/theme_persistence.dart';
 import 'package:bentobook/core/sync/operation_types.dart';
@@ -7,32 +8,46 @@ import 'dart:developer' as dev;
 
 extension UserToApi on User {
   api.User toApiUser() {
-    final urls = avatarUrls;
-    final themeString = ThemePersistence.themeToString(preferredTheme);
-    dev.log(
-        'Database: Converting ThemeMode "$preferredTheme" to API string: "$themeString"');
-
     return api.User(
       id: id.toString(),
       type: 'users',
       attributes: api.UserAttributes(
+        id: id,
         email: email,
-        profile: api.UserProfile(
-          username: username,
-          displayName: displayName,
-          firstName: firstName,
-          lastName: lastName,
-          about: about,
-          preferredTheme: themeString,
-          preferredLanguage: preferredLanguage,
-          avatarUrls: urls != null
-              ? api.AvatarUrls(
-                  small: urls['small'],
-                  medium: urls['medium'],
-                  large: urls['large'],
-                )
-              : null,
-        ),
+        createdAt: createdAt,
+      ),
+    );
+  }
+}
+
+extension ProfileToApi on User {
+  api.Profile toApiProfile() {
+    final themeString = ThemePersistence.themeToString(preferredTheme);
+    dev.log('Database: Converting ThemeMode "$preferredTheme" to API string: "$themeString"');
+
+    return api.Profile(
+      id: id.toString(),
+      type: 'profile',
+      attributes: api.ProfileAttributes(
+        username: username ?? '',
+        firstName: firstName,
+        lastName: lastName,
+        about: about,
+        displayName: displayName ?? username ?? '',
+        preferredTheme: themeString,
+        preferredLanguage: preferredLanguage,
+        email: email,
+        avatarUrls: avatarUrls != null 
+          ? api.AvatarUrls(
+              thumbnail: avatarUrls?['thumbnail'],
+              small: avatarUrls?['small'],
+              medium: avatarUrls?['medium'],
+              large: avatarUrls?['large'],
+              original: avatarUrls?['original'],
+            )
+          : null,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
       ),
     );
   }

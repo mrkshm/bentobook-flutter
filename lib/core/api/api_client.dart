@@ -250,15 +250,13 @@ class ApiClient {
       final jsonData = response.data as Map<String, dynamic>;
       
       if (jsonData['status'] == 'success' && jsonData['data'] != null) {
-        final sessionData = jsonData['data'] as Map<String, dynamic>;
-        final session = SessionResponse.fromJson(sessionData);
-        
-        _token = session.attributes.token;
+        final token = jsonData['data']['attributes']['token'] as String;
+        _token = token;
         return true;
       }
       return false;
     } catch (e) {
-      dev.log('ApiClient: Error parsing refresh token response', error: e);
+      dev.log('ApiClient: Error refreshing token', error: e);
       return false;
     }
   }
@@ -271,6 +269,19 @@ class ApiClient {
         (json) => User.fromJson(json as Map<String, dynamic>),
       );
     } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<ApiResponse<Profile>> getProfile(String userId) async {
+    try {
+      final response = await get(ApiEndpoints.profile);
+      return ApiResponse<Profile>.fromJson(
+        response as Map<String, dynamic>,
+        (json) => Profile.fromJson(json as Map<String, dynamic>),
+      );
+    } catch (e) {
+      dev.log('Failed to get profile', error: e);
       rethrow;
     }
   }
@@ -301,28 +312,6 @@ class ApiClient {
     } catch (e) {
       dev.log('Unexpected error while updating profile', error: e);
       throw ApiException(message: 'Failed to update profile: $e');
-    }
-  }
-
-  Future<ApiResponse<User>> updateProfileOld({
-    String? preferredTheme,
-  }) async {
-    try {
-      final response = await _dio.patch(
-        ApiEndpoints.updateProfile,
-        data: {
-          'profile': {
-            if (preferredTheme != null) 'preferred_theme': preferredTheme,
-          },
-        },
-      );
-
-      return ApiResponse<User>.fromJson(
-        response.data,
-        (json) => User.fromJson(json as Map<String, dynamic>),
-      );
-    } on DioException catch (e) {
-      throw _handleError(e);
     }
   }
 

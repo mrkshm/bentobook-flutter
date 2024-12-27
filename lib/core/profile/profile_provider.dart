@@ -1,11 +1,12 @@
+import 'dart:async';
+import 'dart:developer' as dev;
+
 import 'package:bentobook/core/api/models/profile.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/api/models/user.dart' as user_models;
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/auth/auth_state.dart';
 
-// Profile state
 class ProfileState {
   final Profile? profile;
   final bool isLoading;
@@ -30,111 +31,103 @@ class ProfileState {
   }
 }
 
-// Profile notifier
 class ProfileNotifier extends StateNotifier<ProfileState> {
   final ProfileRepository _repository;
+  StreamSubscription<Profile?>? _profileSubscription;
 
   ProfileNotifier(this._repository) : super(const ProfileState());
 
-  void initializeProfile(user_models.User user) {
-    state = state.copyWith(
-      profile: Profile(
-        id: user.id,
-        type: 'profile',
-        attributes: ProfileAttributes(
-          username: user.attributes.username ?? '',
-          firstName: user.attributes.firstName,
-          lastName: user.attributes.lastName,
-          about: user.attributes.profile?.about,
-          fullName: '${user.attributes.firstName ?? ''} ${user.attributes.lastName ?? ''}'.trim(),
-          displayName: user.attributes.username ?? '',
-          preferredTheme: user.attributes.preferredTheme ?? 'light',
-          preferredLanguage: user.attributes.profile?.preferredLanguage ?? 'en',
-          createdAt: user.attributes.profile?.createdAt ?? DateTime.now(),
-          updatedAt: user.attributes.updatedAt ?? DateTime.now(),
-          email: user.attributes.email ?? '',
-          avatarUrls: AvatarUrls(
-            thumbnail: '',
-            small: '',
-            medium: '',
-            large: '',
-            original: '',
-          ),
-        ),
-      ),
-    );
-  }
-
-  void clearProfile() {
-    state = state.copyWith(profile: null);
-  }
-
-  Future<void> updateProfile({
-    String? username,
-    String? firstName,
-    String? lastName,
-    String? about,
-  }) async {
-    if (state.isLoading) return;
-
-    // Store the current profile for rollback
-    final previousProfile = state.profile;
-    if (previousProfile == null) return;
-
+  Future<void> initializeProfile(String userId) async {
     try {
-      // Create new attributes with updated fields
-      final updatedAttributes = previousProfile.attributes.copyWith(
-        username: username ?? previousProfile.attributes.username,
-        firstName: firstName ?? previousProfile.attributes.firstName,
-        lastName: lastName ?? previousProfile.attributes.lastName,
-        about: about ?? previousProfile.attributes.about,
+      state = state.copyWith(isLoading: true, error: null);
+      final profile = await _repository.getProfile(userId);
+      state = state.copyWith(profile: profile, isLoading: false);
+      
+      // Start watching profile changes
+      _profileSubscription?.cancel();
+      _profileSubscription = _repository.watchProfile(userId).listen(
+        (profile) {
+          if (profile != null) {
+            state = state.copyWith(profile: profile);
+          }
+        },
+        onError: (error) {
+          dev.log('ProfileNotifier: Error watching profile', error: error);
+          state = state.copyWith(error: error.toString());
+        },
       );
-
-      // Create new profile with updated attributes
-      final updatedProfile = previousProfile.copyWith(
-        attributes: updatedAttributes,
-      );
-
-      state = state.copyWith(
-        isLoading: true,
-        error: null,
-        profile: updatedProfile, // Optimistic update
-      );
-
-      await _repository.updateProfile(
-        username: username,
-        firstName: firstName,
-        lastName: lastName,
-        about: about,
-      );
-
-      // Update successful, keep the optimistic update
-      state = state.copyWith(isLoading: false);
     } catch (e) {
-      // Update failed, rollback to previous profile
+      dev.log('ProfileNotifier: Failed to initialize profile', error: e);
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
-        profile: previousProfile,
+        error: 'Failed to load profile',
       );
     }
   }
 
-  void startListening() {
-    _repository.watchProfile().listen(
-      (profile) {
-        if (profile != null) {
-          state = state.copyWith(profile: profile);
-        }
-      },
-      onError: (error) {
-        state = state.copyWith(error: error.toString());
-      },
-    );
+  Future<void> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? about,
+    String? displayName,
+    String? preferredTheme,
+    String? preferredLanguage,
+  }) async {
+    if (state.isLoading) return;
+    final currentProfile = state.profile;
+    if (currentProfile == null) return;
+
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+
+      // Optimistic update
+      final updatedProfile = currentProfile.copyWith(
+        attributes: currentProfile.attributes.copyWith(
+          firstName: firstName ?? currentProfile.attributes.firstName,
+          lastName: lastName ?? currentProfile.attributes.lastName,
+          about: about ?? currentProfile.attributes.about,
+          displayName: displayName ?? currentProfile.attributes.displayName,
+          preferredTheme: preferredTheme ?? currentProfile.attributes.preferredTheme,
+          preferredLanguage: preferredLanguage ?? currentProfile.attributes.preferredLanguage,
+        ),
+      );
+      state = state.copyWith(profile: updatedProfile);
+
+      // Perform update
+      await _repository.updateProfile(
+        userId: currentProfile.id,
+        firstName: firstName,
+        lastName: lastName,
+        about: about,
+        displayName: displayName,
+        preferredTheme: preferredTheme,
+        preferredLanguage: preferredLanguage,
+      );
+
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      dev.log('ProfileNotifier: Failed to update profile', error: e);
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to update profile',
+        profile: currentProfile, // Rollback on error
+      );
+    }
+  }
+
+  void clearProfile() {
+    _profileSubscription?.cancel();
+    _profileSubscription = null;
+    state = const ProfileState();
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
   }
 }
 
-// Providers
 final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
   final repository = ref.watch(profileRepositoryProvider);
   final notifier = ProfileNotifier(repository);
@@ -142,16 +135,11 @@ final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((re
   // Listen to auth state changes
   ref.listen<AuthState>(authServiceProvider, (previous, next) {
     next.maybeMap(
-      authenticated: (state) => notifier.initializeProfile(state.user),
-      orElse: () => notifier.clearProfile(),
+      authenticated: (state) => notifier.initializeProfile(state.user.id),
+      unauthenticated: (_) => notifier.clearProfile(),
+      orElse: () {},
     );
   });
-
-  // Initialize profile from current auth state
-  ref.read(authServiceProvider).maybeMap(
-    authenticated: (state) => notifier.initializeProfile(state.user),
-    orElse: () {},
-  );
   
   return notifier;
 });

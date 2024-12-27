@@ -1,3 +1,4 @@
+import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,7 @@ class ProfileScreen extends ConsumerWidget {
     final themeMode = ref.watch(themeProvider);
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
+    final profileState = ref.watch(profileProvider);
     final user = authState.maybeMap(
       authenticated: (state) => state.user,
       orElse: () => null,
@@ -25,6 +27,14 @@ class ProfileScreen extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
+    if (profileState.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final profile = profileState.profile;
 
     return Scaffold(
       appBar: AppBar(
@@ -160,20 +170,21 @@ class ProfileScreen extends ConsumerWidget {
                     title: const Text('Email'),
                     subtitle: Text(user.attributes.email),
                   ),
-                  if (user.attributes.username?.isNotEmpty ?? false)
+
+                  if (profile?.attributes.username.isNotEmpty ?? false)
                     ListTile(
                       title: const Text('Username'),
-                      subtitle: Text(user.attributes.username!),
+                      subtitle: Text(profile!.attributes.username),
                     ),
-                  if (user.attributes.firstName?.isNotEmpty ?? false)
+                  if (profile?.attributes.firstName?.isNotEmpty ?? false)
                     ListTile(
                       title: const Text('First Name'),
-                      subtitle: Text(user.attributes.firstName!),
+                      subtitle: Text(profile!.attributes.firstName!),
                     ),
-                  if (user.attributes.lastName?.isNotEmpty ?? false)
+                  if (profile?.attributes.lastName?.isNotEmpty ?? false)
                     ListTile(
                       title: const Text('Last Name'),
-                      subtitle: Text(user.attributes.lastName!),
+                      subtitle: Text(profile!.attributes.lastName!),
                     ),
                 ],
               ),
@@ -181,7 +192,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
 
           // Additional Info Card
-          if (user.attributes.profile?.about?.isNotEmpty ?? false)
+          if (profile?.attributes.about?.isNotEmpty ?? false)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Card(
@@ -207,7 +218,7 @@ class ProfileScreen extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Text(
-                        user.attributes.profile!.about!,
+                        profile!.attributes.about!,
                         style: theme.textTheme.bodyMedium,
                       ),
                     ),
@@ -239,11 +250,11 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (user.attributes.profile?.preferredLanguage != null)
+                  if (profile?.attributes.preferredLanguage != null)
                     ListTile(
                       title: const Text('Language'),
                       subtitle:
-                          Text(user.attributes.profile!.preferredLanguage!),
+                          Text(profile!.attributes.preferredLanguage!),
                     ),
                 ],
               ),

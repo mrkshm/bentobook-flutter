@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:drift/drift.dart';  // Add this import for Value class
+import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/shared/providers.dart';
+import 'package:drift/drift.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/extensions.dart';
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/models/profile.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'operation_types.dart';
 import 'dart:developer' as dev;
 
@@ -18,6 +21,7 @@ class QueueManager {
   ];
   final AppDatabase db;
   final ApiClient api;
+  final String? userId;
   final ConnectivityService connectivity;
   StreamSubscription? _connectivitySubscription;
   bool _isProcessing = false;
@@ -26,9 +30,25 @@ class QueueManager {
     required this.db,
     required this.api,
     required this.connectivity,
+    required this.userId,
   }) {
     _initConnectivity();
   }
+
+  static final provider = Provider<QueueManager>((ref) {
+    final authState = ref.watch(authServiceProvider);
+    final userId = authState.maybeMap(
+      authenticated: (state) => state.user.id,
+      orElse: () => null,
+    );
+
+    return QueueManager(
+      api: ref.watch(apiClientProvider),
+      db: ref.watch(databaseProvider),
+      connectivity: ref.watch(connectivityProvider),
+      userId: userId,
+    );
+  });
 
   void _initConnectivity() {
     connectivity.onConnectivityChanged.listen((isOnline) {
@@ -134,15 +154,19 @@ class QueueManager {
   }
   
   Future<void> _processOperation(OperationQueueData op) async {
+    if (userId == null || userId!.isEmpty) {
+      throw Exception("No authenticated user");
+    }
+
     if (!await connectivity.hasConnection()) {
       throw Exception('No network connection');
     }
-
+    
     switch (OperationType.values.byName(op.operationType.name)) {
       case OperationType.themeUpdate:
         try {
           // Get current server state
-          final response = await api.getMe();
+          final response = await api.getProfile(userId!);
           if (response.data == null) {
             throw Exception('Server returned no data');
           }

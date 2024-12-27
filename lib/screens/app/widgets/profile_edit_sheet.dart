@@ -90,18 +90,15 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   }
 
   void _onFieldChanged() {
-    final user = ref.read(authServiceProvider).maybeMap(
-          authenticated: (state) => state.user,
-          orElse: () => null,
-        );
+    final profile = ref.read(profileProvider).profile;
     
-    if (user == null) return;
+    if (profile == null) return;
 
     final hasChanges = 
-      (_usernameController.text != (user.attributes.username ?? '')) ||
-      (_firstNameController.text != (user.attributes.firstName ?? '')) ||
-      (_lastNameController.text != (user.attributes.lastName ?? '')) ||
-      (_aboutController.text != (user.attributes.profile?.about ?? ''));
+      (_usernameController.text != (profile.attributes.username)) ||
+      (_firstNameController.text != (profile.attributes.firstName ?? '')) ||
+      (_lastNameController.text != (profile.attributes.lastName ?? '')) ||
+      (_aboutController.text != (profile.attributes.about ?? ''));
 
     if (hasChanges != _hasUnsavedChanges) {
       setState(() {
@@ -131,7 +128,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
       });
 
       await ref.read(profileProvider.notifier).updateProfile(
-        username: _usernameController.text,
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
         about: _aboutController.text,
@@ -205,17 +201,22 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   @override
   void initState() {
     super.initState();
-    final user = ref.read(authServiceProvider).maybeMap(
-          authenticated: (state) => state.user,
-          orElse: () => null,
-        );
+    
+    final profile = ref.read(profileProvider).profile;
 
-    _usernameController = TextEditingController(text: user?.attributes.username);
-    _firstNameController = TextEditingController(text: user?.attributes.firstName);
-    _lastNameController = TextEditingController(text: user?.attributes.lastName);
-    _aboutController = TextEditingController(text: user?.attributes.profile?.about);
+    _usernameController = TextEditingController(
+      text: profile?.attributes.username ?? '',
+    );
+    _firstNameController = TextEditingController(
+      text: profile?.attributes.firstName ?? '',
+    );
+    _lastNameController = TextEditingController(
+      text: profile?.attributes.lastName ?? '',
+    );
+    _aboutController = TextEditingController(
+      text: profile?.attributes.about ?? '',
+    );
 
-    // Add listeners
     _usernameController.addListener(_onUsernameChanged);
     _firstNameController.addListener(_onFieldChanged);
     _lastNameController.addListener(_onFieldChanged);
@@ -224,23 +225,16 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
     _usernameFocusNode.addListener(() {
       setState(() {
         _isUsernameFocused = _usernameFocusNode.hasFocus;
-        if (!_usernameFocusNode.hasFocus) {
-          _usernameError = _validateUsername(_usernameController.text);
-        }
       });
     });
 
-    // Initialize connectivity status
-    Connectivity().checkConnectivity().then((List<ConnectivityResult> results) {
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .distinct()
+        .listen((List<ConnectivityResult> result) {
       setState(() {
-        _isOnline = !results.contains(ConnectivityResult.none);
-      });
-    });
-
-    // Listen for connectivity changes
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
-      setState(() {
-        _isOnline = !results.contains(ConnectivityResult.none);
+        _isOnline = result.isNotEmpty &&
+            result.any((r) => r != ConnectivityResult.none);
       });
     });
   }
@@ -263,12 +257,9 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final user = ref.watch(authServiceProvider).maybeMap(
-          authenticated: (state) => state.user,
-          orElse: () => null,
-        );
+    final profile = ref.watch(profileProvider).profile;
 
-    if (user == null) {
+    if (profile == null) {
       return const SizedBox.shrink();
     }
 

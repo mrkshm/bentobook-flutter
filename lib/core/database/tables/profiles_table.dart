@@ -7,6 +7,8 @@ class Profiles extends Table {
   TextColumn get about => text().nullable()();
   TextColumn get firstName => text().nullable()();
   TextColumn get lastName => text().nullable()();
+  TextColumn get preferredTheme => 
+      text().withDefault(const Constant('system'))();
   TextColumn get preferredLanguage =>
       text().withDefault(const Constant('en'))();
   TextColumn get syncStatus => text().withDefault(const Constant('pending'))();
