@@ -18,17 +18,18 @@ class ApiClient {
     required this.config,
     this.onRefreshFailed,
     Dio? dio,
-  }) : _dio = dio ?? Dio(
-    BaseOptions(
-      baseUrl: config.apiBaseUrl,
-      connectTimeout: config.connectionTimeout,
-      receiveTimeout: config.receiveTimeout,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    ),
-  ) {
+  }) : _dio = dio ??
+            Dio(
+              BaseOptions(
+                baseUrl: config.apiBaseUrl,
+                connectTimeout: config.connectionTimeout,
+                receiveTimeout: config.receiveTimeout,
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                },
+              ),
+            ) {
     if (config.enableLogging) {
       _dio.interceptors.add(LogInterceptor(
         requestBody: true,
@@ -74,18 +75,18 @@ class ApiClient {
 
   String? getUserIdFromToken() {
     if (_token == null) return null;
-    
+
     try {
       // Get payload part of JWT (second part between dots)
       final parts = _token!.split('.');
       if (parts.length != 3) return null;
-      
+
       // Decode base64
       final payload = parts[1];
       final normalized = base64Url.normalize(payload);
       final decoded = utf8.decode(base64Url.decode(normalized));
       final data = json.decode(decoded);
-      
+
       // Get sub claim which contains user ID
       return data['sub'] as String?;
     } catch (e) {
@@ -271,7 +272,7 @@ class ApiClient {
     try {
       final response = await _dio.post(ApiEndpoints.refreshToken);
       final jsonData = response.data as Map<String, dynamic>;
-      
+
       if (jsonData['status'] == 'success' && jsonData['data'] != null) {
         final token = jsonData['data']['attributes']['token'] as String;
         _token = token;
@@ -311,15 +312,30 @@ class ApiClient {
   }
 
   Future<ApiResponse<Profile>> updateProfile({
-    required ProfileUpdateRequest request,
+    required String userId,
+    String? firstName,
+    String? lastName,
+    String? about,
+    String? displayName,
+    String? preferredTheme,
+    String? preferredLanguage,
+    String? username,
   }) async {
     try {
       dev.log('Updating profile');
       final response = await _dio.put(
         ApiEndpoints.updateProfile,
-        data: request.toJson(),
+        data: {
+          'first_name': firstName,
+          'last_name': lastName,
+          'about': about,
+          'display_name': displayName,
+          'preferred_theme': preferredTheme,
+          'preferred_language': preferredLanguage,
+          'username': username,
+        },
       );
-      
+
       return ApiResponse<Profile>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => Profile.fromJson(json as Map<String, dynamic>),
@@ -327,10 +343,15 @@ class ApiClient {
     } on DioException catch (e) {
       dev.log('Failed to update profile', error: e);
       if (e.response?.statusCode == 422) {
-        throw ApiValidationException(message: 'Validation error: ${e.response?.data['errors']}', statusCode: e.response?.statusCode);
+        throw ApiValidationException(
+            message: 'Validation error: ${e.response?.data['errors']}',
+            statusCode: e.response?.statusCode);
       }
-      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) {
-        throw ApiNetworkException(message: 'Network error: ${e.message}', statusCode: e.response?.statusCode);
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        throw ApiNetworkException(
+            message: 'Network error: ${e.message}',
+            statusCode: e.response?.statusCode);
       }
       throw ApiException.fromDioError(e);
     } catch (e) {

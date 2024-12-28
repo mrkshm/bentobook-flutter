@@ -142,6 +142,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
       final intId = int.parse(userId);
       await repository.updateProfile(
         userId: intId,
+        username: _usernameController.text,
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
         about: _aboutController.text,

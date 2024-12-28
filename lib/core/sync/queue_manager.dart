@@ -7,7 +7,6 @@ import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/extensions.dart';
 import 'package:bentobook/core/api/api_client.dart';
-import 'package:bentobook/core/api/models/profile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'operation_types.dart';
 import 'dart:developer' as dev;
@@ -165,17 +164,7 @@ class QueueManager {
 
     switch (op.operationType) {
       case OperationType.profileUpdate:
-        final payload = json.decode(op.payload);
-        await api.updateProfile(
-          request: ProfileUpdateRequest(
-            firstName: payload['firstName'],
-            lastName: payload['lastName'],
-            about: payload['about'],
-            displayName: payload['displayName'],
-            preferredTheme: payload['preferredTheme'],
-            preferredLanguage: payload['preferredLanguage'],
-          ),
-        );
+        await _processProfileUpdate(op);
         break;
       case OperationType.themeUpdate:
         try {
@@ -198,9 +187,8 @@ class QueueManager {
           // Process local change
           final payload = json.decode(op.payload);
           await api.updateProfile(
-            request: ProfileUpdateRequest(
-              preferredTheme: payload['theme'],
-            ),
+            userId: userId!,
+            preferredTheme: payload['theme'],
           );
 
           // Update server timestamp
@@ -213,9 +201,47 @@ class QueueManager {
     }
   }
 
+  Future<void> _processProfileUpdate(OperationQueueData op) async {
+    try {
+      dev.log('Processing profile update operation');
+      await db.markOperationStatus(op.id, OperationStatus.processing);
+
+      final payload = json.decode(op.payload);
+      if (payload == null) {
+        throw QueueException('No payload for profile update operation');
+      }
+
+      await api.updateProfile(
+        userId: userId!,
+        firstName: payload['firstName'],
+        lastName: payload['lastName'],
+        about: payload['about'],
+        displayName: payload['displayName'],
+        preferredTheme: payload['preferredTheme'],
+        preferredLanguage: payload['preferredLanguage'],
+        username: payload['username'],
+      );
+
+      await db.markOperationStatus(op.id, OperationStatus.completed);
+    } catch (e) {
+      dev.log('Failed to process profile update: $e');
+      await db.markOperationStatus(op.id, OperationStatus.failed,
+          error: e.toString());
+      rethrow;
+    }
+  }
+
   void dispose() {
     _connectivitySubscription?.cancel();
   }
+}
+
+class QueueException implements Exception {
+  final String message;
+  QueueException(this.message);
+
+  @override
+  String toString() => 'QueueException: $message';
 }
 
 class UnsupportedOperationException implements Exception {
@@ -224,4 +250,37 @@ class UnsupportedOperationException implements Exception {
 
   @override
   String toString() => 'Unsupported operation type: $operationType';
+}
+
+class ProfileUpdateRequest {
+  final int userId;
+  final String? firstName;
+  final String? lastName;
+  final String? about;
+  final String? displayName;
+  final String? preferredTheme;
+  final String? preferredLanguage;
+  final String? username;
+
+  ProfileUpdateRequest({
+    required this.userId,
+    this.firstName,
+    this.lastName,
+    this.about,
+    this.displayName,
+    this.preferredTheme,
+    this.preferredLanguage,
+    this.username,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'userId': userId,
+        'firstName': firstName,
+        'lastName': lastName,
+        'about': about,
+        'displayName': displayName,
+        'preferredTheme': preferredTheme,
+        'preferredLanguage': preferredLanguage,
+        'username': username,
+      };
 }

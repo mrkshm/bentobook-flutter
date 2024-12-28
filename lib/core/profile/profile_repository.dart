@@ -21,7 +21,7 @@ class ProfileRepository {
       id: dbProfile.userId.toString(),
       type: 'profile',
       attributes: api.ProfileAttributes(
-        username: dbProfile.displayName ?? '',
+        username: dbProfile.username ?? '',
         firstName: dbProfile.firstName,
         lastName: dbProfile.lastName,
         about: dbProfile.about,
@@ -79,6 +79,7 @@ class ProfileRepository {
                 about: resolvedProfile.attributes.about,
                 displayName: resolvedProfile.attributes.displayName,
                 preferredLanguage: resolvedProfile.attributes.preferredLanguage,
+                username: resolvedProfile.attributes.username,
                 syncStatus: 'synced',
               );
               return resolvedProfile;
@@ -112,6 +113,7 @@ class ProfileRepository {
         about: apiProfile.attributes.about,
         displayName: apiProfile.attributes.displayName,
         preferredLanguage: apiProfile.attributes.preferredLanguage,
+        username: apiProfile.attributes.username,
         syncStatus: 'synced',
       );
 
@@ -140,6 +142,7 @@ class ProfileRepository {
     String? displayName,
     String? preferredTheme,
     String? preferredLanguage,
+    String? username,
   }) async {
     // 1. Update local DB first
     await _db.upsertProfile(
@@ -150,6 +153,7 @@ class ProfileRepository {
       displayName: displayName,
       preferredTheme: preferredTheme,
       preferredLanguage: preferredLanguage,
+      username: username,
       syncStatus: 'pending',
     );
 
@@ -164,6 +168,7 @@ class ProfileRepository {
         'displayName': displayName,
         'preferredTheme': preferredTheme,
         'preferredLanguage': preferredLanguage,
+        'username': username,
       },
     );
 
@@ -181,6 +186,7 @@ class ProfileRepository {
     String? displayName,
     String? preferredTheme,
     String? preferredLanguage,
+    String? username,
   }) async {
     final intId = _parseUserId(userId);
     return updateProfile(
@@ -191,6 +197,7 @@ class ProfileRepository {
       displayName: displayName,
       preferredTheme: preferredTheme,
       preferredLanguage: preferredLanguage,
+      username: username,
     );
   }
 

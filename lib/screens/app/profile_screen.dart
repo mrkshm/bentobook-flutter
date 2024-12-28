@@ -171,11 +171,6 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                       ListTile(
-                        title: const Text('Display Name'),
-                        subtitle:
-                            Text(profile.attributes.displayName ?? 'Not set'),
-                      ),
-                      ListTile(
                         title: const Text('Username'),
                         subtitle: Text(profile.attributes.username),
                       ),

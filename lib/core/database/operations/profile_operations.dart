@@ -17,6 +17,7 @@ extension ProfileOperations on AppDatabase {
     String? displayName,
     String? preferredTheme,
     String? preferredLanguage,
+    String? username,
     String? syncStatus,
   }) async {
     dev.log('Database: Upserting profile for user: $userId');
@@ -33,6 +34,7 @@ extension ProfileOperations on AppDatabase {
       preferredLanguage: preferredLanguage != null
           ? Value(preferredLanguage)
           : const Value.absent(),
+      username: username != null ? Value(username) : const Value.absent(),
       syncStatus: Value(syncStatus ?? 'pending'),
       updatedAt: Value(now),
       createdAt: Value(now),
