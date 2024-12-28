@@ -36,7 +36,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
   ProfileNotifier(this._repository) : super(const ProfileState());
 
-  Future<void> initializeProfile(String userId) async {
+  Future<void> initializeProfile(int userId) async {
     try {
       if (state.isLoading) return; // Prevent duplicate initialization
       
@@ -94,7 +94,7 @@ final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((re
           authenticated: (prevAuth) => prevAuth.userId != state.userId,
           orElse: () => true,
         ) ?? true) {
-          notifier.initializeProfile(state.userId);
+          notifier.initializeProfile(state.userId as int);
         }
       },
       orElse: () {},

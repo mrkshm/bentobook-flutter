@@ -123,13 +123,25 @@ extension QueueOperations on AppDatabase {
 extension ProfileOperations on AppDatabase {
   Future<void> deleteProfile(String userId) async {
     dev.log('Database: Deleting profile for user: $userId');
-    await (delete(profiles)..where((p) => p.userId.equals(userId))).go();
+    try {
+      final id = int.parse(userId);
+      await (delete(profiles)..where((p) => p.id.equals(id))).go();
+    } catch (e) {
+      dev.log('Error parsing user ID: $userId', error: e);
+      rethrow;
+    }
   }
 
   Future<void> updateProfileSyncStatus(String userId, String status) async {
     dev.log('Database: Updating profile sync status: $userId -> $status');
-    await (update(profiles)..where((p) => p.userId.equals(userId)))
-        .write(ProfilesCompanion(syncStatus: Value(status)));
+    try {
+      final id = int.parse(userId);
+      await (update(profiles)..where((p) => p.id.equals(id)))
+          .write(ProfilesCompanion(syncStatus: Value(status)));
+    } catch (e) {
+      dev.log('Error parsing user ID: $userId', error: e);
+      rethrow;
+    }
   }
 
   Future<List<Profile>> getUnsyncedProfiles() async {

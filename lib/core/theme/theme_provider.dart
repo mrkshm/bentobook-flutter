@@ -100,7 +100,8 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
 
   Future<void> _loadStoredTheme() async {
     try {
-      final profile = await db.getProfile(userId);
+      final intId = int.parse(userId);
+      final profile = await db.getProfile(intId);
       if (profile != null && profile.preferredTheme != null) {
         state = ThemePersistence.stringToTheme(profile.preferredTheme!);
         dev.log('ThemeNotifier: Loaded stored theme: $state');
@@ -116,10 +117,11 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
     final themeString = ThemePersistence.themeToString(theme);
     
     try {
+      final intId = int.parse(userId);
       if (await ConnectivityService().hasConnection()) {
         // If online, update through repository
         await _repository.updateProfile(
-          userId: userId,
+          userId: intId,
           preferredTheme: themeString,
         );
       } else {

@@ -138,8 +138,9 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         orElse: () => throw Exception('Not authenticated'),
       );
 
+      final intId = int.parse(userId);
       await repository.updateProfile(
-        userId: userId,
+        userId: intId,
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
         about: _aboutController.text,

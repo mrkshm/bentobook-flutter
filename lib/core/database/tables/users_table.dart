@@ -29,7 +29,7 @@ class AvatarUrlsConverter extends TypeConverter<Map<String, String>, String> {
 }
 
 class Users extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  IntColumn get id => integer().unique()(); // Uses API Id
   TextColumn get email => text().unique()();
   TextColumn get username => text().nullable()();
   TextColumn get displayName => text().nullable()();

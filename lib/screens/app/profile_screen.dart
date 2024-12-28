@@ -179,7 +179,7 @@ class ProfileScreen extends ConsumerWidget {
                       final apiClient = ref.read(apiClientProvider);
                       final db = ref.read(databaseProvider);
                       final repository = ProfileRepository(apiClient, db);
-                      await repository.updateProfile(
+                      await repository.updateProfileFromString(
                         userId: userId,
                         firstName: 'John',
                         lastName: 'Doe',

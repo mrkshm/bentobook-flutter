@@ -3,14 +3,14 @@ import '../database.dart';
 import 'dart:developer' as dev;
 
 extension ProfileOperations on AppDatabase {
-  Future<Profile?> getProfile(String userId) async {
+  Future<Profile?> getProfile(int userId) async {
     dev.log('Database: Getting profile for user: $userId');
-    return (select(profiles)..where((p) => p.userId.equals(userId)))
+    return (select(profiles)..where((p) => p.id.equals(userId)))
         .getSingleOrNull();
   }
 
   Future<void> upsertProfile({
-    required String userId,
+    required int userId,
     String? firstName,
     String? lastName,
     String? about,
@@ -22,16 +22,8 @@ extension ProfileOperations on AppDatabase {
     dev.log('Database: Upserting profile for user: $userId');
     final now = DateTime.now().toUtc();
 
-    // First try to get existing profile
-    final existingProfile = await (select(profiles)
-      ..where((p) => p.userId.equals(userId)))
-      .getSingleOrNull();
-
     final profileData = ProfilesCompanion(
-      id: existingProfile?.id != null 
-        ? Value(existingProfile!.id) 
-        : Value.absent(),
-      userId: Value(userId),
+      id: Value(userId),
       firstName: Value(firstName),
       lastName: Value(lastName),
       about: Value(about),
@@ -40,26 +32,24 @@ extension ProfileOperations on AppDatabase {
       preferredLanguage: preferredLanguage != null ? Value(preferredLanguage) : const Value.absent(),
       syncStatus: Value(syncStatus ?? 'pending'),
       updatedAt: Value(now),
-      createdAt: Value(existingProfile?.createdAt ?? now),
+      createdAt: Value(now),
     );
 
     await into(profiles).insertOnConflictUpdate(profileData);
   }
 
-  Stream<Profile?> watchProfile(String userId) {
+  Stream<Profile?> watchProfile(int userId) {
     dev.log('Database: Watching profile for user: $userId');
-    return (select(profiles)..where((p) => p.userId.equals(userId)))
+    return (select(profiles)..where((p) => p.id.equals(userId)))
         .watchSingleOrNull();
   }
 
-  Future<void> deleteProfile(String userId) async {
-    dev.log('Database: Deleting profile for user: $userId');
-    await (delete(profiles)..where((p) => p.userId.equals(userId))).go();
+  Future<void> deleteProfile(int userId) async {
+    await (delete(profiles)..where((p) => p.id.equals(userId))).go();
   }
 
-  Future<void> updateProfileSyncStatus(String userId, String status) async {
-    dev.log('Database: Updating profile sync status: $userId -> $status');
-    await (update(profiles)..where((p) => p.userId.equals(userId)))
+  Future<void> updateProfileSyncStatus(int userId, String status) async {
+    await (update(profiles)..where((p) => p.id.equals(userId)))
         .write(ProfilesCompanion(syncStatus: Value(status)));
   }
 

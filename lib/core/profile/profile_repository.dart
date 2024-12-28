@@ -15,7 +15,7 @@ class ProfileRepository {
 
   api.Profile _convertToApiProfile(Profile dbProfile) {
     return api.Profile(
-      id: dbProfile.userId,
+      id: dbProfile.id.toString(),
       type: 'profile',
       attributes: api.ProfileAttributes(
         username: dbProfile.displayName ?? '',
@@ -33,10 +33,10 @@ class ProfileRepository {
     );
   }
 
-  Future<api.Profile> getProfile(String userId) async {
+  Future<api.Profile> getProfile(int userId) async {
     try {
       // First try to get from API
-      final response = await _apiClient.getProfile(userId);
+      final response = await _apiClient.getProfile(userId.toString());
       if (response.data == null) {
         throw Exception('Profile data is null');
       }
@@ -92,8 +92,18 @@ class ProfileRepository {
     }
   }
 
+  // Helper method to safely convert string ID to int
+  int _parseUserId(String userId) {
+    try {
+      return int.parse(userId);
+    } catch (e) {
+      dev.log('ProfileRepository: Error parsing user ID: $userId', error: e);
+      throw Exception('Invalid user ID format: $userId');
+    }
+  }
+
   Future<api.Profile> updateProfile({
-    required String userId,
+    required int userId,
     String? firstName,
     String? lastName,
     String? about,
@@ -135,7 +145,29 @@ class ProfileRepository {
     }
   }
 
-  Stream<api.Profile?> watchProfile(String userId) async* {
+  // Convenience method that accepts string ID
+  Future<api.Profile> updateProfileFromString({
+    required String userId,
+    String? firstName,
+    String? lastName,
+    String? about,
+    String? displayName,
+    String? preferredTheme,
+    String? preferredLanguage,
+  }) async {
+    final intId = _parseUserId(userId);
+    return updateProfile(
+      userId: intId,
+      firstName: firstName,
+      lastName: lastName,
+      about: about,
+      displayName: displayName,
+      preferredTheme: preferredTheme,
+      preferredLanguage: preferredLanguage,
+    );
+  }
+
+  Stream<api.Profile?> watchProfile(int userId) async* {
     await for (final dbProfile in _db.watchProfile(userId)) {
       if (dbProfile == null) {
         yield null;

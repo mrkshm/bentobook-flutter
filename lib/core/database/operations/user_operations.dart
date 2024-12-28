@@ -22,6 +22,7 @@ extension UserOperations on AppDatabase {
   }
 
   Future<User> createUser({
+    required int id,
     required String email,
     String? username,
     String? displayName,
@@ -34,6 +35,7 @@ extension UserOperations on AppDatabase {
   }) async {
     dev.log('Database: Creating user with email: $email');
     final user = UsersCompanion.insert(
+      id: id,
       email: email,
       username: Value(username),
       displayName: Value(displayName),
@@ -47,7 +49,7 @@ extension UserOperations on AppDatabase {
       updatedAt: DateTime.now(),
     );
 
-    final id = await into(users).insert(user);
+    await into(users).insert(user);
     return (select(users)..where((t) => t.id.equals(id))).getSingle();
   }
 

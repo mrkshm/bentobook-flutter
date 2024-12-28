@@ -40,7 +40,7 @@ class UserRepository {
       if (existingUser != null) {
         dev.log('UserRepository: Updating existing user');
         await _db.updateUser(User(
-          id: existingUser.id, // Keep local ID
+          id: apiUser.attributes.id, // Use API's ID
           email: email,
           username: profile?.username,
           displayName: profile?.displayName,
@@ -64,6 +64,7 @@ class UserRepository {
       } else {
         dev.log('UserRepository: Creating new user');
         final user = await _db.createUser(
+          id: apiUser.attributes.id, // Use API's ID
           email: email,
           username: profile?.username,
           displayName: profile?.displayName,
