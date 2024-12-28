@@ -1,13 +1,10 @@
 import 'package:bentobook/core/api/api_client.dart';
-import 'package:bentobook/core/auth/auth_state.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/database/database.dart';
-import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/core/profile/profile_provider.dart';
-import 'package:bentobook/core/profile/profile_repository.dart';
+import 'package:bentobook/core/config/env_config.dart';
 import 'dart:developer' as dev;
 
 // Database providers
@@ -17,12 +14,18 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return db;
 });
 
-final userRepositoryProvider = Provider<UserRepository>((ref) {
-  final db = ref.watch(databaseProvider);
-  return UserRepository(db);
+final appDatabaseProvider = Provider<AppDatabase>((ref) => AppDatabase());
+
+// Environment config
+final envConfigProvider = Provider<EnvConfig>((ref) {
+  return EnvConfig.development();
 });
 
-final appDatabaseProvider = Provider<AppDatabase>((ref) => AppDatabase());
+// API Client
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final config = ref.watch(envConfigProvider);
+  return ApiClient(config: config);
+});
 
 final queueManagerProvider = Provider<QueueManager>((ref) {
   final db = ref.watch(databaseProvider);
@@ -30,7 +33,7 @@ final queueManagerProvider = Provider<QueueManager>((ref) {
   final connectivity = ref.watch(connectivityProvider);
   final authState = ref.watch(authServiceProvider);
   final userId = authState.maybeMap(
-    authenticated: (state) => state.user.id,
+    authenticated: (state) => state.userId,
     orElse: () => null
   );
   
@@ -40,37 +43,6 @@ final queueManagerProvider = Provider<QueueManager>((ref) {
     connectivity: connectivity,
     userId: userId
   );
-});
-
-// Profile providers
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  final db = ref.watch(databaseProvider);
-  return ProfileRepository(apiClient, db);
-});
-
-final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  final repository = ref.watch(profileRepositoryProvider);
-  final notifier = ProfileNotifier(repository);
-  
-  // Listen to auth state changes
-  ref.listen<AuthState>(
-    authServiceProvider,
-    (previous, next) {
-      next.maybeMap(
-        authenticated: (state) => notifier.initializeProfile(state.user.id),
-        orElse: () => notifier.clearProfile(),
-      );
-    },
-  );
-  
-  // Initial state check
-  ref.read(authServiceProvider).maybeMap(
-    authenticated: (state) => notifier.initializeProfile(state.user.id),
-    orElse: () {},
-  );
-  
-  return notifier;
 });
 
 // Auth initialization state
@@ -104,14 +76,6 @@ class AuthInitController {
       final authService = _ref.read(authServiceProvider.notifier);
       await authService.initializeAuth();
 
-      // Initialize profile if auth was successful
-      _ref.read(authServiceProvider).maybeMap(
-        authenticated: (state) async {
-          await _ref.read(profileProvider.notifier).initializeProfile(state.user.id);
-        },
-        orElse: () {},
-      );
-      
       _ref.read(authInitStateProvider.notifier).state = AuthInitState.completed;
     } catch (e) {
       dev.log('AuthInit: Error during initialization: $e');

@@ -38,7 +38,7 @@ class QueueManager {
   static final provider = Provider<QueueManager>((ref) {
     final authState = ref.watch(authServiceProvider);
     final userId = authState.maybeMap(
-      authenticated: (state) => state.user.id,
+      authenticated: (state) => state.userId,
       orElse: () => null,
     );
 

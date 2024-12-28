@@ -1,13 +1,12 @@
-import 'package:bentobook/core/api/models/session_response.dart';
 import 'package:bentobook/core/api/models/profile.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/config/env_config.dart';
 import 'api_exception.dart';
 import 'models/api_response.dart';
 import 'models/user.dart';
 import 'api_endpoints.dart';
 import 'dart:developer' as dev;
+import 'dart:convert';
 
 class ApiClient {
   final Dio _dio;
@@ -68,6 +67,30 @@ class ApiClient {
 
   void setToken(String? token) {
     _token = token;
+    if (_token != null) {
+      _dio.options.headers['Authorization'] = 'Bearer $_token';
+    }
+  }
+
+  String? getUserIdFromToken() {
+    if (_token == null) return null;
+    
+    try {
+      // Get payload part of JWT (second part between dots)
+      final parts = _token!.split('.');
+      if (parts.length != 3) return null;
+      
+      // Decode base64
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final data = json.decode(decoded);
+      
+      // Get sub claim which contains user ID
+      return data['sub'] as String?;
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<T> get<T>(
@@ -269,6 +292,7 @@ class ApiClient {
         (json) => User.fromJson(json as Map<String, dynamic>),
       );
     } catch (e) {
+      dev.log('Failed to get current user', error: e);
       rethrow;
     }
   }
@@ -319,8 +343,3 @@ class ApiClient {
     return ApiException.fromDioError(error);
   }
 }
-
-final apiClientProvider = Provider<ApiClient>((ref) {
-  final config = ref.watch(envConfigProvider);
-  return ApiClient(config: config);
-});

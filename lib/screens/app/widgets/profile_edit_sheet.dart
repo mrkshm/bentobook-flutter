@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bentobook/core/profile/profile_repository.dart';
+import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/core/profile/profile_provider.dart';
 
 class ProfileEditSheet extends ConsumerStatefulWidget {
   const ProfileEditSheet({super.key});
@@ -127,7 +129,17 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         _isSaving = true;
       });
 
-      await ref.read(profileProvider.notifier).updateProfile(
+      final apiClient = ref.read(apiClientProvider);
+      final db = ref.read(databaseProvider);
+      final repository = ProfileRepository(apiClient, db);
+      
+      final userId = ref.read(authServiceProvider).maybeMap(
+        authenticated: (state) => state.userId,
+        orElse: () => throw Exception('Not authenticated'),
+      );
+
+      await repository.updateProfile(
+        userId: userId,
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
         about: _aboutController.text,
@@ -153,15 +165,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
             ),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Dismiss',
-              textColor: Theme.of(context).colorScheme.onError,
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-            ),
           ),
         );
       }

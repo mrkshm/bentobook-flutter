@@ -9,44 +9,41 @@ extension ProfileOperations on AppDatabase {
         .getSingleOrNull();
   }
 
-  Future<Profile> upsertProfile({
+  Future<void> upsertProfile({
     required String userId,
-    String? displayName,
-    String? about,
     String? firstName,
     String? lastName,
+    String? about,
+    String? displayName,
     String? preferredTheme,
     String? preferredLanguage,
-    String syncStatus = 'pending',
+    String? syncStatus,
   }) async {
     dev.log('Database: Upserting profile for user: $userId');
+    final now = DateTime.now().toUtc();
 
-    final existingProfile = await getProfile(userId);
-    final now = DateTime.now();
+    // First try to get existing profile
+    final existingProfile = await (select(profiles)
+      ..where((p) => p.userId.equals(userId)))
+      .getSingleOrNull();
 
-    final profile = ProfilesCompanion.insert(
-      userId: userId,
-      displayName: Value(displayName),
-      about: Value(about),
+    final profileData = ProfilesCompanion(
+      id: existingProfile?.id != null 
+        ? Value(existingProfile!.id) 
+        : Value.absent(),
+      userId: Value(userId),
       firstName: Value(firstName),
       lastName: Value(lastName),
-      preferredTheme: Value(preferredTheme ?? 'light'),
-      preferredLanguage: Value(preferredLanguage ?? 'en'),
-      syncStatus: Value(syncStatus),
-      updatedAt: now,
-      createdAt: existingProfile?.createdAt ?? now,
+      about: Value(about),
+      displayName: Value(displayName),
+      preferredTheme: preferredTheme != null ? Value(preferredTheme) : const Value.absent(),
+      preferredLanguage: preferredLanguage != null ? Value(preferredLanguage) : const Value.absent(),
+      syncStatus: Value(syncStatus ?? 'pending'),
+      updatedAt: Value(now),
+      createdAt: Value(existingProfile?.createdAt ?? now),
     );
 
-    await into(profiles).insert(
-      profile,
-      onConflict: DoUpdate(
-        (old) => profile,
-        target: [profiles.userId],
-      ),
-    );
-    
-    return (select(profiles)..where((p) => p.userId.equals(userId)))
-        .getSingle();
+    await into(profiles).insertOnConflictUpdate(profileData);
   }
 
   Stream<Profile?> watchProfile(String userId) {

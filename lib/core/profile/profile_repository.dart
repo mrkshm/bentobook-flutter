@@ -2,13 +2,14 @@ import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/models/profile.dart' as api;
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/operations/profile_operations.dart';
-import 'package:bentobook/core/shared/providers.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bentobook/core/sync/models/syncable.dart';
+import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
 import 'dart:developer' as dev;
 
 class ProfileRepository {
   final ApiClient _apiClient;
   final AppDatabase _db;
+  final _resolver = ProfileResolver();
 
   ProfileRepository(this._apiClient, this._db);
 
@@ -34,28 +35,59 @@ class ProfileRepository {
 
   Future<api.Profile> getProfile(String userId) async {
     try {
+      // First try to get from API
       final response = await _apiClient.getProfile(userId);
       if (response.data == null) {
         throw Exception('Profile data is null');
       }
+
+      final apiProfile = response.data!;
       
-      await _db.upsertProfile(
-        userId: userId,
-        firstName: response.data!.attributes.firstName,
-        lastName: response.data!.attributes.lastName,
-        about: response.data!.attributes.about,
-        displayName: response.data!.attributes.displayName,
-        preferredLanguage: response.data!.attributes.preferredLanguage,
-        syncStatus: 'synced',
-      );
-      return response.data!;
-    } catch (e, stack) {
-      dev.log('ProfileRepository: Failed to get profile', error: e, stackTrace: stack);
-      // Try to return cached profile
-      final cached = await _db.getProfile(userId);
-      if (cached != null) {
-        return _convertToApiProfile(cached);
+      // Get existing profile from database
+      final dbProfile = await _db.getProfile(userId);
+      
+      if (dbProfile != null) {
+        // Convert database profile to API format for comparison
+        final localProfile = _convertToApiProfile(dbProfile);
+        
+        // Resolve any conflicts
+        final resolution = _resolver.resolveConflict(
+          localData: localProfile.toSyncable(),
+          remoteData: apiProfile.toSyncable(),
+          strategy: ConflictStrategy.merge,
+        );
+
+        if (resolution.shouldUpdate) {
+          // Save resolved data to database
+          final resolvedProfile = resolution.resolvedData.profile;
+          await _db.upsertProfile(
+            userId: userId,
+            firstName: resolvedProfile.attributes.firstName,
+            lastName: resolvedProfile.attributes.lastName,
+            about: resolvedProfile.attributes.about,
+            displayName: resolvedProfile.attributes.displayName,
+            preferredLanguage: resolvedProfile.attributes.preferredLanguage,
+            syncStatus: 'synced',
+          );
+          return resolvedProfile;
+        } else {
+          return localProfile;
+        }
+      } else {
+        // No local data, save API data to database
+        await _db.upsertProfile(
+          userId: userId,
+          firstName: apiProfile.attributes.firstName,
+          lastName: apiProfile.attributes.lastName,
+          about: apiProfile.attributes.about,
+          displayName: apiProfile.attributes.displayName,
+          preferredLanguage: apiProfile.attributes.preferredLanguage,
+          syncStatus: 'synced',
+        );
+        return apiProfile;
       }
+    } catch (e) {
+      dev.log('Failed to get profile', error: e);
       rethrow;
     }
   }
@@ -113,9 +145,3 @@ class ProfileRepository {
     }
   }
 }
-
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  final db = ref.watch(databaseProvider);
-  return ProfileRepository(apiClient, db);
-});
