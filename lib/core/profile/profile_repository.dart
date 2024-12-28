@@ -39,66 +39,83 @@ class ProfileRepository {
 
   Future<api.Profile> getProfile(int userId) async {
     try {
-      dev.log('ProfileRepository: Getting profile from API for user: $userId');
-      // First try to get from API
-      final response = await _apiClient.getProfile(userId.toString());
-      if (response.data == null) {
-        dev.log('ProfileRepository: API returned null profile data');
-        throw Exception('Profile data is null');
-      }
-
+      // 1. First try to get from local DB
       dev.log(
-          'ProfileRepository: Got profile from API, checking local database');
-      final apiProfile = response.data!;
-
-      // Get existing profile from database
+          'ProfileRepository: Checking local database first for user: $userId');
       final dbProfile = await _db.getProfile(userId);
 
       if (dbProfile != null) {
-        dev.log('ProfileRepository: Found existing profile in database');
-        // Convert database profile to API format for comparison
+        dev.log('ProfileRepository: Found profile in local database');
         final localProfile = _convertToApiProfile(dbProfile);
 
-        // Resolve any conflicts
-        final resolution = _resolver.resolveConflict(
-          localData: localProfile.toSyncable(),
-          remoteData: apiProfile.toSyncable(),
-          strategy: ConflictStrategy.merge,
-        );
-
-        if (resolution.shouldUpdate) {
-          dev.log(
-              'ProfileRepository: Updating local profile with resolved data');
-          // Save resolved data to database
-          final resolvedProfile = resolution.resolvedData.profile;
-          await _db.upsertProfile(
-            userId: userId,
-            firstName: resolvedProfile.attributes.firstName,
-            lastName: resolvedProfile.attributes.lastName,
-            about: resolvedProfile.attributes.about,
-            displayName: resolvedProfile.attributes.displayName,
-            preferredLanguage: resolvedProfile.attributes.preferredLanguage,
-            syncStatus: 'synced',
-          );
-          return resolvedProfile;
-        } else {
-          dev.log('ProfileRepository: Using existing local profile data');
+        // If we're offline or have pending changes, return local data
+        if (dbProfile.syncStatus == 'pending') {
+          dev.log('ProfileRepository: Using pending local changes');
           return localProfile;
         }
-      } else {
-        dev.log('ProfileRepository: No local profile found, saving API data');
-        // No local data, save API data to database
-        await _db.upsertProfile(
-          userId: userId,
-          firstName: apiProfile.attributes.firstName,
-          lastName: apiProfile.attributes.lastName,
-          about: apiProfile.attributes.about,
-          displayName: apiProfile.attributes.displayName,
-          preferredLanguage: apiProfile.attributes.preferredLanguage,
-          syncStatus: 'synced',
-        );
-        return apiProfile;
+
+        // If we're online, try to sync with server
+        try {
+          dev.log('ProfileRepository: Attempting to sync with server');
+          final response = await _apiClient.getProfile(userId.toString());
+          if (response.data != null) {
+            final apiProfile = response.data!;
+
+            // Resolve any conflicts
+            final resolution = _resolver.resolveConflict(
+              localData: localProfile.toSyncable(),
+              remoteData: apiProfile.toSyncable(),
+              strategy: ConflictStrategy.merge,
+            );
+
+            if (resolution.shouldUpdate) {
+              dev.log(
+                  'ProfileRepository: Updating local profile with server data');
+              final resolvedProfile = resolution.resolvedData.profile;
+              await _db.upsertProfile(
+                userId: userId,
+                firstName: resolvedProfile.attributes.firstName,
+                lastName: resolvedProfile.attributes.lastName,
+                about: resolvedProfile.attributes.about,
+                displayName: resolvedProfile.attributes.displayName,
+                preferredLanguage: resolvedProfile.attributes.preferredLanguage,
+                syncStatus: 'synced',
+              );
+              return resolvedProfile;
+            }
+          }
+        } catch (e) {
+          dev.log(
+              'ProfileRepository: Failed to sync with server, using local data',
+              error: e);
+          // On API error, return local data
+          return localProfile;
+        }
+
+        return localProfile;
       }
+
+      // 2. If no local data, try to get from API
+      dev.log('ProfileRepository: No local profile, fetching from API');
+      final response = await _apiClient.getProfile(userId.toString());
+      if (response.data == null) {
+        throw Exception('Profile data is null');
+      }
+
+      final apiProfile = response.data!;
+
+      // Save API data to local DB
+      await _db.upsertProfile(
+        userId: userId,
+        firstName: apiProfile.attributes.firstName,
+        lastName: apiProfile.attributes.lastName,
+        about: apiProfile.attributes.about,
+        displayName: apiProfile.attributes.displayName,
+        preferredLanguage: apiProfile.attributes.preferredLanguage,
+        syncStatus: 'synced',
+      );
+
+      return apiProfile;
     } catch (e) {
       dev.log('ProfileRepository: Failed to get profile', error: e);
       rethrow;
