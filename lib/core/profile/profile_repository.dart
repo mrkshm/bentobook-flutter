@@ -15,14 +15,15 @@ class ProfileRepository {
 
   api.Profile _convertToApiProfile(Profile dbProfile) {
     return api.Profile(
-      id: dbProfile.id.toString(),
+      id: dbProfile.userId.toString(),
       type: 'profile',
       attributes: api.ProfileAttributes(
         username: dbProfile.displayName ?? '',
         firstName: dbProfile.firstName,
         lastName: dbProfile.lastName,
         about: dbProfile.about,
-        fullName: '${dbProfile.firstName ?? ''} ${dbProfile.lastName ?? ''}'.trim(),
+        fullName:
+            '${dbProfile.firstName ?? ''} ${dbProfile.lastName ?? ''}'.trim(),
         displayName: dbProfile.displayName ?? '',
         preferredLanguage: dbProfile.preferredLanguage,
         createdAt: dbProfile.createdAt,
@@ -35,21 +36,26 @@ class ProfileRepository {
 
   Future<api.Profile> getProfile(int userId) async {
     try {
+      dev.log('ProfileRepository: Getting profile from API for user: $userId');
       // First try to get from API
       final response = await _apiClient.getProfile(userId.toString());
       if (response.data == null) {
+        dev.log('ProfileRepository: API returned null profile data');
         throw Exception('Profile data is null');
       }
 
+      dev.log(
+          'ProfileRepository: Got profile from API, checking local database');
       final apiProfile = response.data!;
-      
+
       // Get existing profile from database
       final dbProfile = await _db.getProfile(userId);
-      
+
       if (dbProfile != null) {
+        dev.log('ProfileRepository: Found existing profile in database');
         // Convert database profile to API format for comparison
         final localProfile = _convertToApiProfile(dbProfile);
-        
+
         // Resolve any conflicts
         final resolution = _resolver.resolveConflict(
           localData: localProfile.toSyncable(),
@@ -58,6 +64,8 @@ class ProfileRepository {
         );
 
         if (resolution.shouldUpdate) {
+          dev.log(
+              'ProfileRepository: Updating local profile with resolved data');
           // Save resolved data to database
           final resolvedProfile = resolution.resolvedData.profile;
           await _db.upsertProfile(
@@ -71,9 +79,11 @@ class ProfileRepository {
           );
           return resolvedProfile;
         } else {
+          dev.log('ProfileRepository: Using existing local profile data');
           return localProfile;
         }
       } else {
+        dev.log('ProfileRepository: No local profile found, saving API data');
         // No local data, save API data to database
         await _db.upsertProfile(
           userId: userId,
@@ -87,7 +97,7 @@ class ProfileRepository {
         return apiProfile;
       }
     } catch (e) {
-      dev.log('Failed to get profile', error: e);
+      dev.log('ProfileRepository: Failed to get profile', error: e);
       rethrow;
     }
   }
@@ -139,7 +149,8 @@ class ProfileRepository {
       dev.log('ProfileRepository: Profile updated successfully');
       return response.data!;
     } catch (e, stack) {
-      dev.log('ProfileRepository: Failed to update profile', error: e, stackTrace: stack);
+      dev.log('ProfileRepository: Failed to update profile',
+          error: e, stackTrace: stack);
       await _db.updateProfileSyncStatus(userId, 'failed');
       rethrow;
     }

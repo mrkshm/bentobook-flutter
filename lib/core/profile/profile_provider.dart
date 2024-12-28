@@ -5,6 +5,7 @@ import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:developer' as dev;
 
 class ProfileState {
   final Profile? profile;
@@ -38,27 +39,39 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
   Future<void> initializeProfile(int userId) async {
     try {
-      if (state.isLoading) return; // Prevent duplicate initialization
-      
+      if (state.isLoading) {
+        dev.log('ProfileNotifier: Already loading, skipping initialization');
+        return;
+      }
+
+      dev.log(
+          'ProfileNotifier: Starting profile initialization for user ID: $userId');
       state = state.copyWith(isLoading: true, error: null);
-      
-      // Start watching profile changes first
+
+      // Start watching profile changes
       _profileSubscription?.cancel();
       _profileSubscription = _repository.watchProfile(userId).listen(
         (profile) {
-          if (!state.isLoading) { // Only update if not in initial load
+          dev.log(
+              'ProfileNotifier: Received profile update: ${profile?.attributes.displayName}');
+          if (!state.isLoading) {
             state = state.copyWith(profile: profile);
           }
         },
         onError: (error) {
+          dev.log('ProfileNotifier: Error in profile stream', error: error);
           state = state.copyWith(error: error.toString());
         },
       );
-      
-      // Then get initial profile
+
+      // Get initial profile
+      dev.log('ProfileNotifier: Fetching initial profile');
       final profile = await _repository.getProfile(userId);
+      dev.log(
+          'ProfileNotifier: Initial profile fetched: ${profile.attributes.displayName}');
       state = state.copyWith(profile: profile, isLoading: false);
     } catch (e) {
+      dev.log('ProfileNotifier: Error initializing profile', error: e);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -79,7 +92,8 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 }
 
 // Profile state provider
-final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
+final profileProvider =
+    StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final db = ref.watch(databaseProvider);
   final repository = ProfileRepository(apiClient, db);
@@ -87,17 +101,25 @@ final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((re
 
   // Listen to auth state changes
   ref.listen(authServiceProvider, (previous, next) {
+    dev.log('ProfileProvider: Auth state changed');
+    dev.log('ProfileProvider: Previous state: $previous');
+    dev.log('ProfileProvider: Next state: $next');
+
     next.maybeMap(
       authenticated: (state) {
-        // Only initialize if previous state was not authenticated or if user changed
-        if (previous?.maybeMap(
-          authenticated: (prevAuth) => prevAuth.userId != state.userId,
-          orElse: () => true,
-        ) ?? true) {
-          notifier.initializeProfile(state.userId as int);
+        final userId = int.tryParse(state.userId);
+        dev.log('ProfileProvider: Parsed user ID: $userId');
+        if (userId != null) {
+          dev.log('ProfileProvider: Initializing profile for user: $userId');
+          notifier.initializeProfile(userId);
+        } else {
+          dev.log('ProfileProvider: Failed to parse user ID: ${state.userId}');
         }
       },
-      orElse: () {},
+      orElse: () {
+        dev.log('ProfileProvider: Non-authenticated state, clearing profile');
+        notifier.clearProfile();
+      },
     );
   });
 

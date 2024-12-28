@@ -1,5 +1,6 @@
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
+import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/database/database.dart';
@@ -25,6 +26,11 @@ final envConfigProvider = Provider<EnvConfig>((ref) {
 final apiClientProvider = Provider<ApiClient>((ref) {
   final config = ref.watch(envConfigProvider);
   return ApiClient(config: config);
+});
+
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return UserRepository(db);
 });
 
 final queueManagerProvider = Provider<QueueManager>((ref) {

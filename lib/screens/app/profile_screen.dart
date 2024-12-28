@@ -1,10 +1,12 @@
 import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
+import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
+import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'dart:developer' as dev;
 
@@ -17,6 +19,7 @@ class ProfileScreen extends ConsumerWidget {
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
     final profileState = ref.watch(profileProvider);
+    final currentTheme = ref.watch(themeProvider);
     final userId = authState.maybeMap(
       authenticated: (state) => state.userId,
       orElse: () => null,
@@ -50,9 +53,9 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Profile Card
+              // Theme Selection
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -67,15 +70,111 @@ class ProfileScreen extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Text(
-                          'Personal Information',
+                          'Appearance',
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.primary,
                           ),
                         ),
                       ),
                       ListTile(
+                        title: const Text('Theme Mode'),
+                        trailing: SegmentedButton<ThemeMode>(
+                          segments: const [
+                            ButtonSegment(
+                              value: ThemeMode.light,
+                              icon: Icon(Icons.light_mode),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.system,
+                              icon: Icon(Icons.brightness_auto),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.dark,
+                              icon: Icon(Icons.dark_mode),
+                            ),
+                          ],
+                          selected: {currentTheme},
+                          onSelectionChanged: (Set<ThemeMode> selection) {
+                            ref
+                                .read(themeProvider.notifier)
+                                .setTheme(selection.first);
+                          },
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Color Scheme'),
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(Icons.palette_outlined,
+                              color: theme.colorScheme.primary),
+                          position: PopupMenuPosition.under,
+                          itemBuilder: (context) => AppTheme.schemes.entries
+                              .map(
+                                (scheme) => PopupMenuItem(
+                                  value: scheme.key,
+                                  child: Text(scheme.key),
+                                ),
+                              )
+                              .toList(),
+                          onSelected: (String schemeName) {
+                            ref
+                                .read(colorSchemeProvider.notifier)
+                                .setSchemeByName(schemeName);
+                          },
+                        ),
+                        subtitle: Text(
+                          AppTheme.schemeToString(colorScheme),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Profile Card
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Personal Information',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  useRootNavigator: true,
+                                  builder: (context) =>
+                                      const ProfileEditSheet(),
+                                );
+                              },
+                              tooltip: 'Edit Profile',
+                            ),
+                          ],
+                        ),
+                      ),
+                      ListTile(
                         title: const Text('Display Name'),
-                        subtitle: Text(profile.attributes.displayName ?? 'Not set'),
+                        subtitle:
+                            Text(profile.attributes.displayName ?? 'Not set'),
                       ),
                       ListTile(
                         title: const Text('Username'),
@@ -83,15 +182,17 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       ListTile(
                         title: const Text('First Name'),
-                        subtitle: Text(profile.attributes.firstName ?? 'Not set'),
+                        subtitle:
+                            Text(profile.attributes.firstName ?? 'Not set'),
                       ),
                       ListTile(
                         title: const Text('Last Name'),
-                        subtitle: Text(profile.attributes.lastName ?? 'Not set'),
+                        subtitle:
+                            Text(profile.attributes.lastName ?? 'Not set'),
                       ),
                       ListTile(
                         title: const Text('Email'),
-                        subtitle: Text(profile.attributes.email.isNotEmpty 
+                        subtitle: Text(profile.attributes.email.isNotEmpty
                             ? profile.attributes.email
                             : 'Not set'),
                       ),
@@ -162,8 +263,7 @@ class ProfileScreen extends ConsumerWidget {
                       if (profile.attributes.preferredLanguage != null)
                         ListTile(
                           title: const Text('Language'),
-                          subtitle:
-                              Text(profile.attributes.preferredLanguage!),
+                          subtitle: Text(profile.attributes.preferredLanguage!),
                         ),
                     ],
                   ),
@@ -216,7 +316,8 @@ class ProfileScreen extends ConsumerWidget {
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Logout'),
-                          content: const Text('Are you sure you want to logout?'),
+                          content:
+                              const Text('Are you sure you want to logout?'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),

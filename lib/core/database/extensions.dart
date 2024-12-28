@@ -23,7 +23,8 @@ extension UserToApi on User {
 extension ProfileToApi on User {
   api.Profile toApiProfile() {
     final themeString = ThemePersistence.themeToString(preferredTheme);
-    dev.log('Database: Converting ThemeMode "$preferredTheme" to API string: "$themeString"');
+    dev.log(
+        'Database: Converting ThemeMode "$preferredTheme" to API string: "$themeString"');
 
     return api.Profile(
       id: id.toString(),
@@ -37,15 +38,15 @@ extension ProfileToApi on User {
         preferredTheme: themeString,
         preferredLanguage: preferredLanguage,
         email: email,
-        avatarUrls: avatarUrls != null 
-          ? api.AvatarUrls(
-              thumbnail: avatarUrls?['thumbnail'],
-              small: avatarUrls?['small'],
-              medium: avatarUrls?['medium'],
-              large: avatarUrls?['large'],
-              original: avatarUrls?['original'],
-            )
-          : null,
+        avatarUrls: avatarUrls != null
+            ? api.AvatarUrls(
+                thumbnail: avatarUrls?['thumbnail'],
+                small: avatarUrls?['small'],
+                medium: avatarUrls?['medium'],
+                large: avatarUrls?['large'],
+                original: avatarUrls?['original'],
+              )
+            : null,
         createdAt: createdAt,
         updatedAt: updatedAt,
       ),
@@ -125,7 +126,7 @@ extension ProfileOperations on AppDatabase {
     dev.log('Database: Deleting profile for user: $userId');
     try {
       final id = int.parse(userId);
-      await (delete(profiles)..where((p) => p.id.equals(id))).go();
+      await (delete(profiles)..where((p) => p.userId.equals(id))).go();
     } catch (e) {
       dev.log('Error parsing user ID: $userId', error: e);
       rethrow;
@@ -136,7 +137,7 @@ extension ProfileOperations on AppDatabase {
     dev.log('Database: Updating profile sync status: $userId -> $status');
     try {
       final id = int.parse(userId);
-      await (update(profiles)..where((p) => p.id.equals(id)))
+      await (update(profiles)..where((p) => p.userId.equals(id)))
           .write(ProfilesCompanion(syncStatus: Value(status)));
     } catch (e) {
       dev.log('Error parsing user ID: $userId', error: e);

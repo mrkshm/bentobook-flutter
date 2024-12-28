@@ -35,7 +35,7 @@ extension UserOperations on AppDatabase {
   }) async {
     dev.log('Database: Creating user with email: $email');
     final user = UsersCompanion.insert(
-      id: id,
+      id: Value(id),
       email: email,
       username: Value(username),
       displayName: Value(displayName),
@@ -56,7 +56,19 @@ extension UserOperations on AppDatabase {
   Future<User> updateUser(User user) async {
     dev.log('Database: Updating user with ID: ${user.id}');
     try {
-      await update(users).replace(user);
+      await (update(users)..where((t) => t.id.equals(user.id)))
+          .write(UsersCompanion(
+        email: Value(user.email),
+        username: Value(user.username),
+        displayName: Value(user.displayName),
+        firstName: Value(user.firstName),
+        lastName: Value(user.lastName),
+        about: Value(user.about),
+        preferredTheme: Value(user.preferredTheme),
+        preferredLanguage: Value(user.preferredLanguage),
+        avatarUrls: Value(user.avatarUrls),
+        updatedAt: Value(DateTime.now()),
+      ));
       return user;
     } catch (e) {
       dev.log('Database: Error updating user', error: e);

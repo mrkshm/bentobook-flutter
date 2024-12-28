@@ -5,7 +5,7 @@ import 'dart:developer' as dev;
 extension ProfileOperations on AppDatabase {
   Future<Profile?> getProfile(int userId) async {
     dev.log('Database: Getting profile for user: $userId');
-    return (select(profiles)..where((p) => p.id.equals(userId)))
+    return (select(profiles)..where((p) => p.userId.equals(userId)))
         .getSingleOrNull();
   }
 
@@ -23,13 +23,16 @@ extension ProfileOperations on AppDatabase {
     final now = DateTime.now().toUtc();
 
     final profileData = ProfilesCompanion(
-      id: Value(userId),
+      userId: Value(userId),
       firstName: Value(firstName),
       lastName: Value(lastName),
       about: Value(about),
       displayName: Value(displayName),
-      preferredTheme: preferredTheme != null ? Value(preferredTheme) : const Value.absent(),
-      preferredLanguage: preferredLanguage != null ? Value(preferredLanguage) : const Value.absent(),
+      preferredTheme:
+          preferredTheme != null ? Value(preferredTheme) : const Value.absent(),
+      preferredLanguage: preferredLanguage != null
+          ? Value(preferredLanguage)
+          : const Value.absent(),
       syncStatus: Value(syncStatus ?? 'pending'),
       updatedAt: Value(now),
       createdAt: Value(now),
@@ -40,16 +43,16 @@ extension ProfileOperations on AppDatabase {
 
   Stream<Profile?> watchProfile(int userId) {
     dev.log('Database: Watching profile for user: $userId');
-    return (select(profiles)..where((p) => p.id.equals(userId)))
+    return (select(profiles)..where((p) => p.userId.equals(userId)))
         .watchSingleOrNull();
   }
 
   Future<void> deleteProfile(int userId) async {
-    await (delete(profiles)..where((p) => p.id.equals(userId))).go();
+    await (delete(profiles)..where((p) => p.userId.equals(userId))).go();
   }
 
   Future<void> updateProfileSyncStatus(int userId, String status) async {
-    await (update(profiles)..where((p) => p.id.equals(userId)))
+    await (update(profiles)..where((p) => p.userId.equals(userId)))
         .write(ProfilesCompanion(syncStatus: Value(status)));
   }
 

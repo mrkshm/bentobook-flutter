@@ -15,26 +15,51 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _testResult = '';
 
+  @override
+  void initState() {
+    super.initState();
+    dev.log('DashboardScreen: initState');
+
+    // Initialize profile after first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = ref.read(authServiceProvider);
+      dev.log('DashboardScreen: Initializing with auth state: $authState');
+
+      authState.maybeMap(
+        authenticated: (state) {
+          final userId = int.tryParse(state.userId);
+          dev.log('DashboardScreen: Parsed user ID: $userId');
+          if (userId != null) {
+            dev.log('DashboardScreen: Triggering profile initialization');
+            ref.read(profileProvider.notifier).initializeProfile(userId);
+          }
+        },
+        orElse: () {
+          dev.log('DashboardScreen: Not authenticated in initState');
+        },
+      );
+    });
+  }
+
   void _showCurrentUser() {
     final authState = ref.read(authServiceProvider);
-    
+
     dev.log('DashboardScreen: Current auth state: $authState');
-    
+
     final userId = authState.maybeMap(
       authenticated: (state) => state.userId,
       orElse: () => null,
     );
-    
+
     setState(() {
-      _testResult = userId != null 
-        ? 'Current User ID: $userId'
-        : 'No user is logged in';
+      _testResult =
+          userId != null ? 'Current User ID: $userId' : 'No user is logged in';
     });
   }
 
   void _showProfileState() {
     final profileState = ref.read(profileProvider);
-    
+
     setState(() {
       _testResult = '''Current Profile State:
 Loading: ${profileState.isLoading}
@@ -57,7 +82,14 @@ ${profileState.profile != null ? '''
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authState = ref.watch(authServiceProvider);
-    
+    // Actively watch profile state
+    final profileState = ref.watch(profileProvider);
+
+    dev.log('DashboardScreen: Build with profile state - '
+        'loading: ${profileState.isLoading}, '
+        'hasProfile: ${profileState.profile != null}, '
+        'error: ${profileState.error}');
+
     return authState.map(
       initial: (_) => const Scaffold(
         body: Center(child: Text('Initializing...')),
@@ -68,7 +100,7 @@ ${profileState.profile != null ? '''
       authenticated: (state) {
         final userId = state.userId;
         dev.log('DashboardScreen: Building with userId: $userId');
-        
+
         return Scaffold(
           appBar: AppBar(
             title: const Text('Dashboard'),
@@ -165,7 +197,7 @@ ${profileState.profile != null ? '''
       unauthenticated: (_) {
         // Redirect to login
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/login');
+          context.go('/public/login');
         });
         return const Scaffold(
           body: Center(child: Text('Redirecting to login...')),

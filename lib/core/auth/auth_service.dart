@@ -5,14 +5,16 @@ import 'dart:developer' as dev;
 import 'auth_state.dart';
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/api_exception.dart';
+import 'package:bentobook/core/repositories/user_repository.dart';
 
 const _tokenKey = 'auth_token';
 
 class AuthService extends StateNotifier<AuthState> {
   final ApiClient _apiClient;
   final FlutterSecureStorage _storage;
+  final UserRepository _userRepository;
 
-  AuthService(this._apiClient, this._storage) 
+  AuthService(this._apiClient, this._storage, this._userRepository) 
       : super(const AuthState.initial()) {
     _apiClient.onRefreshFailed = () {
       _storage.delete(key: _tokenKey);
@@ -52,6 +54,11 @@ class AuthService extends StateNotifier<AuthState> {
         return;
       }
 
+      // Save user data to local database
+      if (response.data != null) {
+        await _userRepository.saveUserFromApi(response.data!);
+      }
+
       state = AuthState.authenticated(userId: userId, token: token);
       dev.log('AuthService: Successfully authenticated with user ID: $userId');
     } catch (e) {
@@ -74,6 +81,11 @@ class AuthService extends StateNotifier<AuthState> {
         throw ApiException(message: 'Invalid response from server');
       }
 
+      // Save user data to local database
+      if (response.data != null) {
+        await _userRepository.saveUserFromApi(response.data!);
+      }
+
       await _storage.write(key: _tokenKey, value: token);
       state = AuthState.authenticated(userId: userId, token: token);
     } catch (e) {
@@ -93,6 +105,11 @@ class AuthService extends StateNotifier<AuthState> {
       
       if (token == null || userId == null) {
         throw ApiException(message: 'Invalid response from server');
+      }
+
+      // Save user data to local database
+      if (response.data != null) {
+        await _userRepository.saveUserFromApi(response.data!);
       }
 
       await _storage.write(key: _tokenKey, value: token);
@@ -119,5 +136,6 @@ class AuthService extends StateNotifier<AuthState> {
 final authServiceProvider = StateNotifierProvider<AuthService, AuthState>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   const storage = FlutterSecureStorage();
-  return AuthService(apiClient, storage);
+  final userRepository = ref.watch(userRepositoryProvider);
+  return AuthService(apiClient, storage, userRepository);
 });
