@@ -68,7 +68,7 @@ class QueueManager {
     required Map<String, dynamic> payload,
   }) async {
     dev.log('QueueManager: Enqueueing operation: $type');
-    
+
     // Check for existing pending operation of same type
     final existing = await db.getPendingOperationsByType(type);
     if (existing.isNotEmpty) {
@@ -77,16 +77,16 @@ class QueueManager {
     }
 
     await db.into(db.operationQueue).insert(
-      OperationQueueCompanion.insert(
-        operationType: type,
-        payload: json.encode(payload),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        localTimestamp: DateTime.now(),
-        status: OperationStatus.pending,
-        retryCount: const Value(0),
-      ),
-    );
+          OperationQueueCompanion.insert(
+            operationType: type,
+            payload: json.encode(payload),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            localTimestamp: DateTime.now(),
+            status: OperationStatus.pending,
+            retryCount: const Value(0),
+          ),
+        );
 
     final isOnline = await _isOnline();
     if (isOnline) {
@@ -99,28 +99,28 @@ class QueueManager {
       dev.log('QueueManager: Queue already processing');
       return;
     }
-    
+
     final isOnline = await connectivity.hasConnection();
     if (!isOnline) {
       dev.log('QueueManager: No connection, skipping queue processing');
       return;
     }
-    
+
     try {
       _isProcessing = true;
       dev.log('QueueManager: Starting queue processing');
       final pending = await db.getPendingOperations();
-      
+
       for (final operation in pending) {
         // Check connection before each operation
         if (!await connectivity.hasConnection()) {
           dev.log('QueueManager: Lost connection, pausing queue processing');
           break;
         }
-        
+
         if (operation.retryCount >= _maxRetries) {
           await db.markOperationStatus(
-            operation.id, 
+            operation.id,
             OperationStatus.failed,
             error: 'Max retries exceeded',
           );
@@ -128,7 +128,8 @@ class QueueManager {
         }
 
         try {
-          await db.markOperationStatus(operation.id, OperationStatus.processing);
+          await db.markOperationStatus(
+              operation.id, OperationStatus.processing);
           await _processOperation(operation);
           await db.markOperationStatus(operation.id, OperationStatus.completed);
         } catch (e) {
@@ -139,7 +140,7 @@ class QueueManager {
             retryCount: newRetryCount,
             error: e.toString(),
           );
-          
+
           if (newRetryCount < _maxRetries) {
             // Schedule retry with exponential backoff
             final delay = _retryDelays[operation.retryCount];
@@ -152,7 +153,7 @@ class QueueManager {
       dev.log('QueueManager: Queue processing complete');
     }
   }
-  
+
   Future<void> _processOperation(OperationQueueData op) async {
     if (userId == null || userId!.isEmpty) {
       throw Exception("No authenticated user");
@@ -161,8 +162,21 @@ class QueueManager {
     if (!await connectivity.hasConnection()) {
       throw Exception('No network connection');
     }
-    
-    switch (OperationType.values.byName(op.operationType.name)) {
+
+    switch (op.operationType) {
+      case OperationType.profileUpdate:
+        final payload = json.decode(op.payload);
+        await api.updateProfile(
+          request: ProfileUpdateRequest(
+            firstName: payload['firstName'],
+            lastName: payload['lastName'],
+            about: payload['about'],
+            displayName: payload['displayName'],
+            preferredTheme: payload['preferredTheme'],
+            preferredLanguage: payload['preferredLanguage'],
+          ),
+        );
+        break;
       case OperationType.themeUpdate:
         try {
           // Get current server state
@@ -172,9 +186,10 @@ class QueueManager {
           }
 
           final serverTimestamp = response.data!.attributes.updatedAt;
-          
+
           // Compare timestamps
-          if (serverTimestamp != null && serverTimestamp.isAfter(op.localTimestamp)) {
+          if (serverTimestamp != null &&
+              serverTimestamp.isAfter(op.localTimestamp)) {
             dev.log('QueueManager: Server has newer theme, skipping update');
             await db.markOperationStatus(op.id, OperationStatus.skipped);
             return;
@@ -187,7 +202,7 @@ class QueueManager {
               preferredTheme: payload['theme'],
             ),
           );
-          
+
           // Update server timestamp
           await db.updateOperationServerTimestamp(op.id, DateTime.now());
           dev.log('QueueManager: Theme updated on server');
@@ -206,7 +221,7 @@ class QueueManager {
 class UnsupportedOperationException implements Exception {
   final String operationType;
   UnsupportedOperationException(this.operationType);
-  
+
   @override
   String toString() => 'Unsupported operation type: $operationType';
 }

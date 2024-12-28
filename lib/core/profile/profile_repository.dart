@@ -3,15 +3,18 @@ import 'package:bentobook/core/api/models/profile.dart' as api;
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/operations/profile_operations.dart';
 import 'package:bentobook/core/sync/models/syncable.dart';
+import 'package:bentobook/core/sync/operation_types.dart';
+import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
 import 'dart:developer' as dev;
 
 class ProfileRepository {
   final ApiClient _apiClient;
   final AppDatabase _db;
+  final QueueManager _queueManager;
   final _resolver = ProfileResolver();
 
-  ProfileRepository(this._apiClient, this._db);
+  ProfileRepository(this._apiClient, this._db, this._queueManager);
 
   api.Profile _convertToApiProfile(Profile dbProfile) {
     return api.Profile(
@@ -121,39 +124,35 @@ class ProfileRepository {
     String? preferredTheme,
     String? preferredLanguage,
   }) async {
-    try {
-      // Update local DB with pending status
-      await _db.upsertProfile(
-        userId: userId,
-        firstName: firstName,
-        lastName: lastName,
-        about: about,
-        displayName: displayName,
-        preferredTheme: preferredTheme,
-        preferredLanguage: preferredLanguage,
-        syncStatus: 'pending',
-      );
+    // 1. Update local DB first
+    await _db.upsertProfile(
+      userId: userId,
+      firstName: firstName,
+      lastName: lastName,
+      about: about,
+      displayName: displayName,
+      preferredTheme: preferredTheme,
+      preferredLanguage: preferredLanguage,
+      syncStatus: 'pending',
+    );
 
-      // Update API
-      final response = await _apiClient.updateProfile(
-        request: api.ProfileUpdateRequest(
-          firstName: firstName,
-          lastName: lastName,
-          about: about,
-          displayName: displayName,
-          preferredTheme: preferredTheme,
-          preferredLanguage: preferredLanguage,
-        ),
-      );
+    // 2. Try to sync immediately if online
+    await _queueManager.enqueueOperation(
+      type: OperationType.profileUpdate,
+      payload: {
+        'userId': userId,
+        'firstName': firstName,
+        'lastName': lastName,
+        'about': about,
+        'displayName': displayName,
+        'preferredTheme': preferredTheme,
+        'preferredLanguage': preferredLanguage,
+      },
+    );
 
-      dev.log('ProfileRepository: Profile updated successfully');
-      return response.data!;
-    } catch (e, stack) {
-      dev.log('ProfileRepository: Failed to update profile',
-          error: e, stackTrace: stack);
-      await _db.updateProfileSyncStatus(userId, 'failed');
-      rethrow;
-    }
+    // 3. Return local profile immediately
+    final localProfile = await _db.getProfile(userId);
+    return _convertToApiProfile(localProfile!);
   }
 
   // Convenience method that accepts string ID

@@ -40,7 +40,8 @@ class NotAuthenticatedThemeNotifier extends BaseThemeNotifier {
   String get themeName => ThemePersistence.themeToString(state);
 }
 
-final themeProvider = StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
+final themeProvider =
+    StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
   final authState = ref.watch(authServiceProvider);
 
   if (!authState.maybeMap(
@@ -81,16 +82,15 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
     required this.queueManager,
     required this.userId,
     required this.ref,
-  })  : _repository = ProfileRepository(api, db),
+  })  : _repository = ProfileRepository(api, db, queueManager),
         super(ThemeMode.system) {
     _loadStoredTheme();
-    
+
     // Listen to profile changes
     ref.listen(profileProvider, (previous, next) {
       if (next.profile?.attributes.preferredTheme != null) {
         final theme = ThemePersistence.stringToTheme(
-          next.profile!.attributes.preferredTheme!
-        );
+            next.profile!.attributes.preferredTheme!);
         if (theme != state) {
           setTheme(theme);
         }
@@ -115,7 +115,7 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
   Future<void> setTheme(ThemeMode theme) async {
     state = theme;
     final themeString = ThemePersistence.themeToString(theme);
-    
+
     try {
       final intId = int.parse(userId);
       if (await ConnectivityService().hasConnection()) {
@@ -139,7 +139,8 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
 
   @override
   void toggleTheme() {
-    final newTheme = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    final newTheme =
+        state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     dev.log('ThemeNotifier: Toggling theme from $state to $newTheme');
     setTheme(newTheme);
   }

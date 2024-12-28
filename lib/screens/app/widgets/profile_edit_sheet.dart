@@ -4,7 +4,6 @@ import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 
@@ -93,14 +92,14 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
 
   void _onFieldChanged() {
     final profile = ref.read(profileProvider).profile;
-    
+
     if (profile == null) return;
 
-    final hasChanges = 
-      (_usernameController.text != (profile.attributes.username)) ||
-      (_firstNameController.text != (profile.attributes.firstName ?? '')) ||
-      (_lastNameController.text != (profile.attributes.lastName ?? '')) ||
-      (_aboutController.text != (profile.attributes.about ?? ''));
+    final hasChanges = (_usernameController.text !=
+            (profile.attributes.username)) ||
+        (_firstNameController.text != (profile.attributes.firstName ?? '')) ||
+        (_lastNameController.text != (profile.attributes.lastName ?? '')) ||
+        (_aboutController.text != (profile.attributes.about ?? ''));
 
     if (hasChanges != _hasUnsavedChanges) {
       setState(() {
@@ -110,7 +109,8 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   }
 
   Future<void> _saveChanges() async {
-    final firstNameError = _validateName(_firstNameController.text, 'First name');
+    final firstNameError =
+        _validateName(_firstNameController.text, 'First name');
     final lastNameError = _validateName(_lastNameController.text, 'Last name');
     final aboutError = _validateAbout(_aboutController.text);
 
@@ -120,7 +120,10 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
       _aboutError = aboutError;
     });
 
-    if (_usernameError != null || firstNameError != null || lastNameError != null || aboutError != null) {
+    if (_usernameError != null ||
+        firstNameError != null ||
+        lastNameError != null ||
+        aboutError != null) {
       return;
     }
 
@@ -129,14 +132,12 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         _isSaving = true;
       });
 
-      final apiClient = ref.read(apiClientProvider);
-      final db = ref.read(databaseProvider);
-      final repository = ProfileRepository(apiClient, db);
-      
+      final repository = ref.read(profileRepositoryProvider);
+
       final userId = ref.read(authServiceProvider).maybeMap(
-        authenticated: (state) => state.userId,
-        orElse: () => throw Exception('Not authenticated'),
-      );
+            authenticated: (state) => state.userId,
+            orElse: () => throw Exception('Not authenticated'),
+          );
 
       final intId = int.parse(userId);
       await repository.updateProfile(
@@ -185,7 +186,8 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Discard Changes?'),
-        content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
+        content: const Text(
+            'You have unsaved changes. Are you sure you want to discard them?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -205,7 +207,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   @override
   void initState() {
     super.initState();
-    
+
     final profile = ref.read(profileProvider).profile;
 
     _usernameController = TextEditingController(
@@ -273,29 +275,31 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         if (didPop) {
           return;
         }
-        
+
         if (!_hasUnsavedChanges) {
           Navigator.pop(context, true);
           return;
         }
-        
+
         final bool shouldPop = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Discard changes?'),
-            content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Discard changes?'),
+                content: const Text(
+                    'You have unsaved changes. Are you sure you want to discard them?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Discard'),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Discard'),
-              ),
-            ],
-          ),
-        ) ?? false;
+            ) ??
+            false;
 
         if (context.mounted && shouldPop) {
           Navigator.pop(context, result);
@@ -353,7 +357,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     decoration: InputDecoration(
                       labelText: 'Username',
                       errorText: _usernameError,
-                      helperText: !_isOnline 
+                      helperText: !_isOnline
                           ? 'Internet connection required to change username'
                           : _usernameError == null && _isUsernameFocused
                               ? 'Your unique username'
@@ -427,8 +431,9 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: _hasUnsavedChanges && !_isSaving ? _saveChanges : null,
-                    icon: _isSaving 
+                    onPressed:
+                        _hasUnsavedChanges && !_isSaving ? _saveChanges : null,
+                    icon: _isSaving
                         ? const SizedBox(
                             width: 20,
                             height: 20,

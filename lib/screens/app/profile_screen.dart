@@ -1,5 +1,4 @@
 import 'package:bentobook/core/profile/profile_provider.dart';
-import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -276,9 +275,7 @@ class ProfileScreen extends ConsumerWidget {
                 child: ElevatedButton(
                   onPressed: () async {
                     try {
-                      final apiClient = ref.read(apiClientProvider);
-                      final db = ref.read(databaseProvider);
-                      final repository = ProfileRepository(apiClient, db);
+                      final repository = ref.read(profileRepositoryProvider);
                       await repository.updateProfileFromString(
                         userId: userId,
                         firstName: 'John',

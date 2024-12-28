@@ -94,9 +94,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 // Profile state provider
 final profileProvider =
     StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  final db = ref.watch(databaseProvider);
-  final repository = ProfileRepository(apiClient, db);
+  final repository = ref.watch(profileRepositoryProvider);
   final notifier = ProfileNotifier(repository);
 
   // Listen to auth state changes
