@@ -210,4 +210,18 @@ class ProfileRepository {
       }
     }
   }
+
+  Future<bool> checkUsernameAvailability(String username) async {
+    try {
+      dev.log('ProfileRepository: Checking username availability: $username');
+      final isAvailable = await _apiClient.checkUsernameAvailability(username);
+      dev.log(
+          'ProfileRepository: Username $username is ${isAvailable ? 'available' : 'taken'}');
+      return isAvailable;
+    } catch (e) {
+      dev.log('ProfileRepository: Failed to check username availability',
+          error: e);
+      rethrow;
+    }
+  }
 }

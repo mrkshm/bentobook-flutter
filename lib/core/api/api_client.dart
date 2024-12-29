@@ -360,6 +360,38 @@ class ApiClient {
     }
   }
 
+  Future<bool> checkUsernameAvailability(String username) async {
+    try {
+      dev.log('ApiClient: Checking username availability');
+      final response = await _dio.post(
+        ApiEndpoints.verifyUsername,
+        data: {
+          'username': username,
+        },
+      );
+
+      dev.log('ApiClient: Raw response: ${response.data}');
+
+      if (response.data['status'] == 'success' &&
+          response.data['data'] != null &&
+          response.data['data']['attributes'] != null) {
+        return response.data['data']['attributes']['available'] as bool;
+      }
+
+      throw ApiException(message: 'Invalid response format from server');
+    } on DioException catch (e) {
+      dev.log('Failed to check username availability', error: e);
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        throw ApiNetworkException(
+          message: 'Network error while checking username',
+          statusCode: e.response?.statusCode,
+        );
+      }
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   ApiException _handleError(DioException error) {
     return ApiException.fromDioError(error);
   }

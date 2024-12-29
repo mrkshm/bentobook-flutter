@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
+import 'dart:developer' as dev;
 
 class ProfileEditSheet extends ConsumerStatefulWidget {
   const ProfileEditSheet({super.key});
@@ -80,13 +81,55 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
 
   void _onUsernameChanged() {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+
+      final currentUsername =
+          ref.read(profileProvider).profile?.attributes.username;
+      final newUsername = _usernameController.text;
+
+      // If username hasn't changed, skip validation
+      if (currentUsername == newUsername) {
         setState(() {
-          _usernameError = _validateUsername(_usernameController.text);
+          _usernameError = null;
         });
         _onFieldChanged();
+        return;
       }
+
+      // First do basic validation
+      final validationError = _validateUsername(newUsername);
+
+      setState(() {
+        _usernameError = validationError;
+      });
+
+      // If basic validation passes, check availability
+      if (validationError == null && _isOnline) {
+        try {
+          dev.log('Checking username availability for: $newUsername');
+          final isAvailable = await ref
+              .read(apiClientProvider)
+              .checkUsernameAvailability(newUsername);
+
+          dev.log('Username availability result: $isAvailable');
+
+          if (mounted) {
+            setState(() {
+              _usernameError = isAvailable ? null : 'Username is already taken';
+            });
+          }
+        } catch (e) {
+          dev.log('Error checking username availability', error: e);
+          if (mounted) {
+            setState(() {
+              _usernameError = 'Unable to verify username availability';
+            });
+          }
+        }
+      }
+
+      _onFieldChanged();
     });
   }
 
@@ -443,7 +486,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                         : const Icon(Icons.save_outlined),
                     label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
                   ),
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
