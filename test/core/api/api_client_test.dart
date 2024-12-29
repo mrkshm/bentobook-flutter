@@ -41,7 +41,15 @@ void main() {
           )).thenAnswer((_) async => Response(
             data: {
               'status': 'success',
-              'data': {'available': true}
+              'data': {
+                'id': '0',
+                'type': 'open_struct',
+                'attributes': {'available': true, 'username': 'testuser'}
+              },
+              'meta': {
+                'timestamp': '2024-12-29T10:23:55Z',
+                'message': 'Username is available'
+              }
             },
             statusCode: 200,
             requestOptions: RequestOptions(),
@@ -66,7 +74,15 @@ void main() {
           )).thenAnswer((_) async => Response(
             data: {
               'status': 'success',
-              'data': {'available': false}
+              'data': {
+                'id': '0',
+                'type': 'open_struct',
+                'attributes': {'available': false, 'username': 'testuser'}
+              },
+              'meta': {
+                'timestamp': '2024-12-29T10:23:55Z',
+                'message': 'Username is not available'
+              }
             },
             statusCode: 200,
             requestOptions: RequestOptions(),

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'dart:developer' as dev;
+import 'package:bentobook/core/validation/profile_validator.dart';
 
 class ProfileEditSheet extends ConsumerStatefulWidget {
   const ProfileEditSheet({super.key});
@@ -16,17 +16,11 @@ class ProfileEditSheet extends ConsumerStatefulWidget {
 }
 
 class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
-  static const _minUsernameLength = 3;
-  static const _maxUsernameLength = 20;
-  static const _maxNameLength = 50;
-  static const _maxAboutLength = 500;
   Timer? _debounceTimer;
   String? _usernameError;
   String? _firstNameError;
   String? _lastNameError;
   String? _aboutError;
-  static final _usernameRegex = RegExp(r'^[a-zA-Z0-9_]+$');
-  static final _nameRegex = RegExp(r"^[a-zA-Z\s\-']+$");
   bool _isUsernameFocused = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isOnline = true;
@@ -42,43 +36,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
   final _aboutFocusNode = FocusNode();
   bool _hasUnsavedChanges = false;
 
-  String? _validateUsername(String value) {
-    if (value.isEmpty) return 'Username is required';
-    if (value.length < _minUsernameLength) {
-      return 'Username must be at least $_minUsernameLength characters';
-    }
-    if (value.length > _maxUsernameLength) {
-      return 'Username must be less than $_maxUsernameLength characters';
-    }
-    if (!_usernameRegex.hasMatch(value)) {
-      return 'Username can only contain letters, numbers and underscores';
-    }
-    return null;
-  }
-
-  String? _validateName(String? value, String fieldName) {
-    if (value == null || value.isEmpty) {
-      return null; // Names are optional
-    }
-    if (value.length > _maxNameLength) {
-      return '$fieldName must be less than $_maxNameLength characters';
-    }
-    if (!_nameRegex.hasMatch(value)) {
-      return '$fieldName can only contain letters, spaces, hyphens, and apostrophes';
-    }
-    return null;
-  }
-
-  String? _validateAbout(String? value) {
-    if (value == null || value.isEmpty) {
-      return null; // About is optional
-    }
-    if (value.length > _maxAboutLength) {
-      return 'About must be less than $_maxAboutLength characters';
-    }
-    return null;
-  }
-
   void _onUsernameChanged() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
@@ -88,7 +45,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
           ref.read(profileProvider).profile?.attributes.username;
       final newUsername = _usernameController.text;
 
-      // If username hasn't changed, skip validation
       if (currentUsername == newUsername) {
         setState(() {
           _usernameError = null;
@@ -97,22 +53,17 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         return;
       }
 
-      // First do basic validation
-      final validationError = _validateUsername(newUsername);
+      final validationError = ProfileValidator.validateUsername(newUsername);
 
       setState(() {
         _usernameError = validationError;
       });
 
-      // If basic validation passes, check availability
       if (validationError == null && _isOnline) {
         try {
-          dev.log('Checking username availability for: $newUsername');
           final isAvailable = await ref
               .read(apiClientProvider)
               .checkUsernameAvailability(newUsername);
-
-          dev.log('Username availability result: $isAvailable');
 
           if (mounted) {
             setState(() {
@@ -120,7 +71,6 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
             });
           }
         } catch (e) {
-          dev.log('Error checking username availability', error: e);
           if (mounted) {
             setState(() {
               _usernameError = 'Unable to verify username availability';
@@ -153,9 +103,10 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
 
   Future<void> _saveChanges() async {
     final firstNameError =
-        _validateName(_firstNameController.text, 'First name');
-    final lastNameError = _validateName(_lastNameController.text, 'Last name');
-    final aboutError = _validateAbout(_aboutController.text);
+        ProfileValidator.validateName(_firstNameController.text, 'First name');
+    final lastNameError =
+        ProfileValidator.validateName(_lastNameController.text, 'Last name');
+    final aboutError = ProfileValidator.validateAbout(_aboutController.text);
 
     setState(() {
       _firstNameError = firstNameError;
@@ -411,7 +362,8 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _usernameError = _validateUsername(value);
+                        _usernameError =
+                            ProfileValidator.validateUsername(value);
                       });
                       _onFieldChanged();
                     },
@@ -429,7 +381,8 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _firstNameError = _validateName(value, 'First name');
+                        _firstNameError =
+                            ProfileValidator.validateName(value, 'First name');
                       });
                       _onFieldChanged();
                     },
@@ -447,7 +400,8 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _lastNameError = _validateName(value, 'Last name');
+                        _lastNameError =
+                            ProfileValidator.validateName(value, 'Last name');
                       });
                       _onFieldChanged();
                     },
@@ -457,7 +411,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     controller: _aboutController,
                     focusNode: _aboutFocusNode,
                     maxLines: 3,
-                    maxLength: _maxAboutLength,
+                    maxLength: ProfileValidator.maxAboutLength,
                     decoration: InputDecoration(
                       labelText: 'About',
                       errorText: _aboutError,
@@ -468,7 +422,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _aboutError = _validateAbout(value);
+                        _aboutError = ProfileValidator.validateAbout(value);
                       });
                       _onFieldChanged();
                     },
