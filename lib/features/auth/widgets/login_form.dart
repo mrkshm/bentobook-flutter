@@ -38,40 +38,14 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     try {
       await ref.read(authServiceProvider.notifier).login(
-        _emailController.text,
-        _passwordController.text,
-      );
-
-      // Listen for auth state changes
-      ref.listenManual(authServiceProvider, (previous, next) {
-        next.maybeMap(
-          authenticated: (_) {
-            dev.log('LoginForm: Login successful');
-            if (mounted) {
-              context.go('/dashboard');
-            }
-          },
-          error: (state) {
-            dev.log('LoginForm: Login error state: ${state.message}');
-            if (mounted) {
-              setState(() {
-                _error = state.message;
-              });
-            }
-          },
-          orElse: () {},
-        );
-      });
+            _emailController.text,
+            _passwordController.text,
+          );
     } catch (e) {
       dev.log('LoginForm: Login error', error: e);
       if (mounted) {
         setState(() {
           _error = e.toString();
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
           _isLoading = false;
         });
       }
@@ -81,6 +55,28 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Listen to auth state changes
+    ref.listen(authServiceProvider, (previous, next) {
+      next.maybeMap(
+        authenticated: (_) {
+          dev.log('LoginForm: Login successful');
+          if (mounted) {
+            context.go('/dashboard');
+          }
+        },
+        error: (state) {
+          dev.log('LoginForm: Login error state: ${state.message}');
+          if (mounted) {
+            setState(() {
+              _error = state.message;
+              _isLoading = false;
+            });
+          }
+        },
+        orElse: () {},
+      );
+    });
 
     return Form(
       key: _formKey,

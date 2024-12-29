@@ -80,10 +80,9 @@ class ApiException implements Exception {
         );
 
       case DioExceptionType.connectionError:
-        return ApiException(
+        return ApiNetworkException(
           message: 'No internet connection',
           statusCode: error.response?.statusCode,
-          error: error,
         );
 
       case DioExceptionType.badCertificate:
@@ -106,4 +105,12 @@ class ApiException implements Exception {
   String toString() {
     return 'ApiException{message: $message, statusCode: $statusCode, error: $error}';
   }
+}
+
+class ApiValidationException extends ApiException {
+  ApiValidationException({required super.message, super.statusCode});
+}
+
+class ApiNetworkException extends ApiException {
+  ApiNetworkException({required super.message, super.statusCode});
 }

@@ -1,36 +1,49 @@
 import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/database/database.dart';
+import 'package:bentobook/core/database/operations/profile_operations.dart';
+import 'package:bentobook/core/network/connectivity_service.dart';
+import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:bentobook/core/sync/operation_types.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
 import 'package:bentobook/core/theme/theme.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart' show ThemeMode;
 import 'dart:developer' as dev;
 import '../shared/providers.dart';
 import 'theme_persistence.dart';
+import 'package:bentobook/core/profile/profile_provider.dart';
 
 abstract class BaseThemeNotifier extends StateNotifier<ThemeMode> {
   BaseThemeNotifier(super.initial);
 
-  void setTheme(ThemeMode theme);
+  Future<void> setTheme(ThemeMode theme);
+  void toggleTheme();
+  String get themeName;
 }
 
 class NotAuthenticatedThemeNotifier extends BaseThemeNotifier {
   NotAuthenticatedThemeNotifier() : super(ThemeMode.system);
 
   @override
-  void setTheme(ThemeMode theme) {
+  Future<void> setTheme(ThemeMode theme) async {
     state = theme;
   }
+
+  @override
+  void toggleTheme() {
+    setTheme(state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light);
+  }
+
+  @override
+  String get themeName => ThemePersistence.themeToString(state);
 }
 
 final themeProvider =
     StateNotifierProvider<BaseThemeNotifier, ThemeMode>((ref) {
   final authState = ref.watch(authServiceProvider);
 
-  // Return system theme notifier if not authenticated
   if (!authState.maybeMap(
     authenticated: (_) => true,
     orElse: () => false,
@@ -38,44 +51,60 @@ final themeProvider =
     return NotAuthenticatedThemeNotifier();
   }
 
-  final user = authState.maybeMap(
-    authenticated: (state) => state.user,
-    orElse: () => throw StateError('User must be authenticated'),
-  );
-
   final db = ref.watch(databaseProvider);
   final api = ref.watch(apiClientProvider);
   final queueManager = ref.watch(queueManagerProvider);
+  final userId = authState.maybeMap(
+    authenticated: (state) => state.userId,
+    orElse: () => throw StateError('User must be authenticated'),
+  );
 
-  return ThemeNotifier(
+  return AuthenticatedThemeNotifier(
     db: db,
     api: api,
     queueManager: queueManager,
-    userEmail: user.attributes.email,
+    userId: userId,
+    ref: ref,
   );
 });
 
-class ThemeNotifier extends BaseThemeNotifier {
+class AuthenticatedThemeNotifier extends BaseThemeNotifier {
   final AppDatabase db;
   final ApiClient api;
   final QueueManager queueManager;
-  final String userEmail;
+  final String userId;
+  final Ref ref;
+  final ProfileRepository _repository;
 
-  ThemeNotifier({
+  AuthenticatedThemeNotifier({
     required this.db,
     required this.api,
     required this.queueManager,
-    required this.userEmail,
-  }) : super(ThemeMode.system) {
+    required this.userId,
+    required this.ref,
+  })  : _repository = ProfileRepository(api, db, queueManager),
+        super(ThemeMode.system) {
     _loadStoredTheme();
+
+    // Listen to profile changes
+    ref.listen(profileProvider, (previous, next) {
+      if (next.profile?.attributes.preferredTheme != null) {
+        final theme = ThemePersistence.stringToTheme(
+            next.profile!.attributes.preferredTheme!);
+        if (theme != state) {
+          setTheme(theme);
+        }
+      }
+    });
   }
 
   Future<void> _loadStoredTheme() async {
     try {
-      final user = await db.getUserByEmail(userEmail);
-      if (user != null) {
-        state = user.preferredTheme;
-        dev.log('ThemeNotifier: Loaded stored theme: ${user.preferredTheme}');
+      final intId = int.parse(userId);
+      final profile = await db.getProfile(intId);
+      if (profile != null && profile.preferredTheme != null) {
+        state = ThemePersistence.stringToTheme(profile.preferredTheme!);
+        dev.log('ThemeNotifier: Loaded stored theme: $state');
       }
     } catch (e) {
       dev.log('ThemeNotifier: Error loading stored theme', error: e);
@@ -85,27 +114,21 @@ class ThemeNotifier extends BaseThemeNotifier {
   @override
   Future<void> setTheme(ThemeMode theme) async {
     state = theme;
-    dev.log('ThemeNotifier: Setting theme to ${theme.toString()}');
+    final themeString = ThemePersistence.themeToString(theme);
 
     try {
-      final user = await db.getUserByEmail(userEmail);
-      if (user != null) {
-        await db.updateUser(user.copyWith(
-          preferredTheme: theme,
-          updatedAt: DateTime.now(),
-        ));
-        dev.log('ThemeNotifier: Updated theme in database');
-      }
-
-      try {
-        await api.updateProfile(
-            preferredTheme: ThemePersistence.themeToString(theme));
-        dev.log('ThemeNotifier: Synced theme with API');
-      } catch (e) {
-        dev.log('ThemeNotifier: API sync failed, queueing operation');
+      final intId = int.parse(userId);
+      if (await ConnectivityService().hasConnection()) {
+        // If online, update through repository
+        await _repository.updateProfile(
+          userId: intId,
+          preferredTheme: themeString,
+        );
+      } else {
+        // If offline, queue the update
         await queueManager.enqueueOperation(
           type: OperationType.themeUpdate,
-          payload: {'theme': ThemePersistence.themeToString(theme)},
+          payload: {'theme': themeString},
         );
       }
     } catch (e) {
@@ -114,24 +137,16 @@ class ThemeNotifier extends BaseThemeNotifier {
     }
   }
 
+  @override
   void toggleTheme() {
     final newTheme =
         state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    dev.log(
-        'ThemeNotifier: Toggling theme from ${state.toString()} to ${newTheme.toString()}');
+    dev.log('ThemeNotifier: Toggling theme from $state to $newTheme');
     setTheme(newTheme);
   }
 
-  String get themeName {
-    switch (state) {
-      case ThemeMode.system:
-        return 'System';
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-    }
-  }
+  @override
+  String get themeName => ThemePersistence.themeToString(state);
 }
 
 class ColorSchemeNotifier extends StateNotifier<FlexScheme> {

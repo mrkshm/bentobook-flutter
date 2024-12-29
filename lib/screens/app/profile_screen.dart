@@ -1,9 +1,13 @@
+import 'package:bentobook/core/profile/profile_provider.dart';
+import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
 import 'package:bentobook/core/theme/theme.dart';
+import 'package:bentobook/core/shared/providers.dart';
+import 'dart:developer' as dev;
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -11,15 +15,23 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final themeMode = ref.watch(themeProvider);
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
-    final user = authState.maybeMap(
-      authenticated: (state) => state.user,
+    final profileState = ref.watch(profileProvider);
+    final currentTheme = ref.watch(themeProvider);
+    final userId = authState.maybeMap(
+      authenticated: (state) => state.userId,
       orElse: () => null,
     );
 
-    if (user == null) {
+    if (userId == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final profile = profileState.profile;
+    if (profileState.isLoading || profile == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -32,163 +44,295 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: theme.colorScheme.surface,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/app/dashboard', extra: true),
+          onPressed: () => context.go('/app/dashboard'),
         ),
       ),
-      body: ListView(
-        children: [
-          // Theme Settings Card
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Theme Selection
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(
+                          'Appearance',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Theme Mode'),
+                        trailing: SegmentedButton<ThemeMode>(
+                          segments: const [
+                            ButtonSegment(
+                              value: ThemeMode.light,
+                              icon: Icon(Icons.light_mode),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.system,
+                              icon: Icon(Icons.brightness_auto),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.dark,
+                              icon: Icon(Icons.dark_mode),
+                            ),
+                          ],
+                          selected: {currentTheme},
+                          onSelectionChanged: (Set<ThemeMode> selection) {
+                            ref
+                                .read(themeProvider.notifier)
+                                .setTheme(selection.first);
+                          },
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Color Scheme'),
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(Icons.palette_outlined,
+                              color: theme.colorScheme.primary),
+                          position: PopupMenuPosition.under,
+                          itemBuilder: (context) => AppTheme.schemes.entries
+                              .map(
+                                (scheme) => PopupMenuItem(
+                                  value: scheme.key,
+                                  child: Text(scheme.key),
+                                ),
+                              )
+                              .toList(),
+                          onSelected: (String schemeName) {
+                            ref
+                                .read(colorSchemeProvider.notifier)
+                                .setSchemeByName(schemeName);
+                          },
+                        ),
+                        subtitle: Text(
+                          AppTheme.schemeToString(colorScheme),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      'Appearance',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
+              // Profile Card
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Personal Information',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  useRootNavigator: true,
+                                  builder: (context) =>
+                                      const ProfileEditSheet(),
+                                );
+                              },
+                              tooltip: 'Edit Profile',
+                            ),
+                          ],
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Username'),
+                        subtitle: Text(profile.attributes.username),
+                      ),
+                      ListTile(
+                        title: const Text('First Name'),
+                        subtitle:
+                            Text(profile.attributes.firstName ?? 'Not set'),
+                      ),
+                      ListTile(
+                        title: const Text('Last Name'),
+                        subtitle:
+                            Text(profile.attributes.lastName ?? 'Not set'),
+                      ),
+                      ListTile(
+                        title: const Text('Email'),
+                        subtitle: Text(profile.attributes.email.isNotEmpty
+                            ? profile.attributes.email
+                            : 'Not set'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // About Card
+              if (profile.attributes.about?.isNotEmpty ?? false)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant,
                       ),
                     ),
-                  ),
-                  ListTile(
-                    title: const Text('Theme Mode'),
-                    trailing: SegmentedButton<ThemeMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            'About',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
                         ),
-                        ButtonSegment(
-                          value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Text(
+                            profile.attributes.about!,
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         ),
                       ],
-                      selected: {themeMode},
-                      onSelectionChanged: (Set<ThemeMode> selection) {
-                        ref.read(themeProvider.notifier).setTheme(selection.first);
-                      },
                     ),
                   ),
-                  ListTile(
-                    title: const Text('Color Scheme'),
-                    trailing: PopupMenuButton<String>(
-                      icon: Icon(Icons.palette_outlined, color: theme.colorScheme.primary),
-                      position: PopupMenuPosition.under,
-                      itemBuilder: (context) => AppTheme.schemes.entries.map((scheme) =>
-                        PopupMenuItem(
-                          value: scheme.key,
-                          child: Text(scheme.key),
-                        ),
-                      ).toList(),
-                      onSelected: (String schemeName) {
-                        ref.read(colorSchemeProvider.notifier).setSchemeByName(schemeName);
-                      },
-                    ),
-                    subtitle: Text(
-                      AppTheme.schemeToString(colorScheme),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // User Info Card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      'User Information',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
+
+              // Preferences Card
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(
+                          'Preferences',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (profile.attributes.preferredLanguage != null)
+                        ListTile(
+                          title: const Text('Language'),
+                          subtitle: Text(profile.attributes.preferredLanguage!),
+                        ),
+                    ],
                   ),
-                  ListTile(
-                    title: const Text('Email'),
-                    subtitle: Text(user.attributes.email),
-                  ),
-                  if (user.attributes.profile?.displayName?.isNotEmpty ?? false)
-                    ListTile(
-                      title: const Text('Display Name'),
-                      subtitle: Text(user.attributes.profile!.displayName!),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          // Logout Card
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
                 ),
               ),
-              child: ListTile(
-                title: Text(
-                  'Logout',
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-                leading: Icon(Icons.logout, color: theme.colorScheme.error),
-                onTap: () async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Are you sure you want to logout?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Logout'),
-                        ),
-                      ],
-                    ),
-                  );
 
-                  if (confirmed == true) {
-                    await ref.read(authServiceProvider.notifier).logout();
-                  }
-                },
+              // Test Button
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      final repository = ref.read(profileRepositoryProvider);
+                      await repository.updateProfileFromString(
+                        userId: userId,
+                        firstName: 'John',
+                        lastName: 'Doe',
+                      );
+                      dev.log('Profile updated successfully');
+                    } catch (e) {
+                      dev.log('Error updating profile', error: e);
+                    }
+                  },
+                  child: const Text('Update Profile Test'),
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+
+              // Logout Card
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      'Logout',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                    leading: Icon(Icons.logout, color: theme.colorScheme.error),
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Logout'),
+                          content:
+                              const Text('Are you sure you want to logout?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Logout'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true) {
+                        await ref.read(authServiceProvider.notifier).logout();
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

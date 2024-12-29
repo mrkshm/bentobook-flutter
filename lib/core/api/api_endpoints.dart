@@ -9,4 +9,5 @@ class ApiEndpoints {
   // User
   static const String profile = '/profile';
   static const String updateProfile = '/profile';
+  static const String verifyUsername = '/usernames/verify';
 }

@@ -29,7 +29,8 @@ class AvatarUrlsConverter extends TypeConverter<Map<String, String>, String> {
 }
 
 class Users extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  // Uses API Id
+  IntColumn get id => integer()();
   TextColumn get email => text().unique()();
   TextColumn get username => text().nullable()();
   TextColumn get displayName => text().nullable()();
@@ -39,10 +40,16 @@ class Users extends Table {
   TextColumn get preferredTheme => text()
       .map(const ThemeModeConverter())
       .withDefault(const Constant('light'))();
-  TextColumn get preferredLanguage => text().withDefault(const Constant('en'))();
-  TextColumn get avatarUrls => text().map(const AvatarUrlsConverter()).nullable()();
-  TextColumn get syncStatus => text().map(const SyncStatusConverter())
+  TextColumn get preferredLanguage =>
+      text().withDefault(const Constant('en'))();
+  TextColumn get avatarUrls =>
+      text().map(const AvatarUrlsConverter()).nullable()();
+  TextColumn get syncStatus => text()
+      .map(const SyncStatusConverter())
       .withDefault(const Constant('synced'))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }

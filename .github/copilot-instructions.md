@@ -1,1 +1,1 @@
-When proposing code and code snippets, always give the name of the file that code should go into.
+if you do not know the contents of a file or anything else, like the structure of an api response, ask to see it. Do not assume anything.

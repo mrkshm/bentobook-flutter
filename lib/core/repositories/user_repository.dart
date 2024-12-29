@@ -1,31 +1,89 @@
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/api/models/user.dart' as api;
+import 'package:bentobook/core/database/operations/user_operations.dart';
 import 'package:bentobook/core/database/tables/sync_status.dart';
 import 'package:bentobook/core/theme/theme_persistence.dart';
+import 'package:bentobook/core/sync/conflict_resolver.dart';
+import 'package:bentobook/core/sync/models/syncable.dart';
 import 'dart:developer' as dev;
+
+class UserSyncable implements Syncable {
+  @override
+  final String id;
+  @override
+  final DateTime updatedAt;
+  @override
+  final String? syncStatus;
+  final api.User apiUser;
+
+  UserSyncable({
+    required this.id,
+    required this.updatedAt,
+    this.syncStatus,
+    required this.apiUser,
+  });
+}
+
+class UserConflictResolver extends ConflictResolver<UserSyncable> {
+  @override
+  ConflictResolution<UserSyncable> mergeData(
+      UserSyncable localData, UserSyncable remoteData) {
+    // For now, use newerWins strategy
+    return resolveConflict(
+      localData: localData,
+      remoteData: remoteData,
+      strategy: ConflictStrategy.newerWins,
+    );
+  }
+}
 
 class UserRepository {
   final AppDatabase _db;
+  final _conflictResolver = UserConflictResolver();
 
   UserRepository(this._db);
 
   Future<void> saveUserFromApi(api.User apiUser) async {
     try {
-      final profile = apiUser.attributes.profile;
       final email = apiUser.attributes.email;
       dev.log('UserRepository: Starting to save API user data');
-      dev.log('UserRepository: Email: $email');
-      if (profile != null) {
-        dev.log('UserRepository: Profile data available');
-        dev.log('UserRepository: Username: ${profile.username}');
-        dev.log('UserRepository: Display Name: ${profile.displayName}');
-      } else {
-        dev.log('UserRepository: No profile data available');
+
+      // First try to get existing user
+      final existingUser = await _db.getUserByEmail(email);
+
+      if (existingUser != null) {
+        dev.log('UserRepository: Found existing user, checking for conflicts');
+
+        final localData = UserSyncable(
+          id: existingUser.id.toString(),
+          updatedAt: existingUser.updatedAt,
+          syncStatus: existingUser.syncStatus.toString(),
+          apiUser: apiUser,
+        );
+
+        final remoteData = UserSyncable(
+          id: apiUser.id,
+          updatedAt: DateTime.now(), // API data is considered fresh
+          syncStatus: SyncStatus.synced.toString(),
+          apiUser: apiUser,
+        );
+
+        final resolution = _conflictResolver.resolveConflict(
+          localData: localData,
+          remoteData: remoteData,
+        );
+
+        dev.log('UserRepository: Conflict resolution - ${resolution.message}');
+
+        if (!resolution.shouldUpdate) {
+          dev.log('UserRepository: Keeping local data');
+          return;
+        }
       }
 
-      // Convert avatar URLs to correct type
+      // Convert avatar URLs
       Map<String, String>? avatarUrls;
-      final userAvatarUrls = profile?.avatarUrls;
+      final userAvatarUrls = apiUser.attributes.profile?.avatarUrls;
       if (userAvatarUrls != null) {
         avatarUrls = {
           if (userAvatarUrls.small != null) 'small': userAvatarUrls.small!,
@@ -34,61 +92,51 @@ class UserRepository {
         };
       }
 
-      // First try to get existing user
-      var existingUser = await _db.getUserByEmail(email);
+      final profile = apiUser.attributes.profile;
+      final user = User(
+        id: int.parse(apiUser.id),
+        email: email,
+        username: profile?.username,
+        displayName: profile?.displayName,
+        firstName: profile?.firstName,
+        lastName: profile?.lastName,
+        about: profile?.about ?? '',
+        preferredTheme: ThemePersistence.stringToTheme(profile?.preferredTheme),
+        preferredLanguage: profile?.preferredLanguage ?? 'en',
+        avatarUrls: avatarUrls,
+        createdAt: existingUser?.createdAt ?? DateTime.now(),
+        updatedAt: DateTime.now(),
+        syncStatus: SyncStatus.synced,
+      );
+
       if (existingUser != null) {
-        dev.log('UserRepository: Updating existing user');
-        await _db.updateUser(User(
-          id: existingUser.id,  // Keep local ID
-          email: email,
-          username: profile?.username,
-          displayName: profile?.displayName,
-          firstName: profile?.firstName,
-          lastName: profile?.lastName,
-          about: profile?.about ?? '',
-          preferredTheme: (() {
-            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
-            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
-            return theme;
-          })(),
-          preferredLanguage: profile?.preferredLanguage ?? 'en',
-          avatarUrls: avatarUrls,
-          createdAt: existingUser.createdAt,
-          updatedAt: DateTime.now(),
-          syncStatus: SyncStatus.synced,
-        ));
+        await _db.updateUser(user);
         dev.log('UserRepository: Updated existing user');
       } else {
-        dev.log('UserRepository: Creating new user');
-        final user = await _db.createUser(
-          email: email,
-          username: profile?.username,
-          displayName: profile?.displayName,
-          firstName: profile?.firstName,
-          lastName: profile?.lastName,
-          about: profile?.about ?? '',
-          preferredTheme: (() {
-            final theme = ThemePersistence.stringToTheme(profile?.preferredTheme);
-            dev.log('UserRepository: Converting API theme "${profile?.preferredTheme}" to ThemeMode: $theme');
-            return theme;
-          })(),
-          preferredLanguage: profile?.preferredLanguage ?? 'en',
-          avatarUrls: avatarUrls,
+        await _db.createUser(
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          displayName: user.displayName,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          about: user.about,
+          preferredTheme: user.preferredTheme,
+          preferredLanguage: user.preferredLanguage,
+          avatarUrls: user.avatarUrls,
         );
-        dev.log('UserRepository: Created new user: $user');
+        dev.log('UserRepository: Created new user');
       }
 
       // Verify the save
       final savedUser = await _db.getUserByEmail(email);
-      if (savedUser != null) {
-        dev.log('UserRepository: User save verified');
-        dev.log('UserRepository: Saved user: $savedUser');
-      } else {
-        dev.log('UserRepository: Failed to verify user save');
+      if (savedUser == null) {
         throw Exception('Failed to verify user save');
       }
+      dev.log('UserRepository: User save verified');
     } catch (e, stackTrace) {
-      dev.log('UserRepository: Error saving user', error: e, stackTrace: stackTrace);
+      dev.log('UserRepository: Error saving user',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -125,13 +173,6 @@ class UserRepository {
   }
 
   Future<User?> getUserByEmail(String email) async {
-    dev.log('UserRepository: Getting user by email: $email');
-    final user = await _db.getUserByEmail(email);
-    if (user != null) {
-      dev.log('UserRepository: Found user: ${user.email} (${user.displayName})');
-    } else {
-      dev.log('UserRepository: No user found for email: $email');
-    }
-    return user;
+    return _db.getUserByEmail(email);
   }
 }
