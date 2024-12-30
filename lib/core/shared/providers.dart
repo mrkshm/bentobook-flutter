@@ -8,6 +8,9 @@ import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/config/env_config.dart';
 import 'dart:developer' as dev;
+import 'package:bentobook/core/sync/conflict_resolver.dart';
+import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
+import 'package:bentobook/core/image/image_manager.dart';
 
 // Database providers
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -50,8 +53,14 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final db = ref.watch(databaseProvider);
   final api = ref.watch(apiClientProvider);
   final queueManager = ref.watch(queueManagerProvider);
+  final resolver = ref.watch(conflictResolverProvider);
 
-  return ProfileRepository(api, db, queueManager);
+  return ProfileRepository(
+    db: db,
+    apiClient: api,
+    queueManager: queueManager,
+    resolver: resolver,
+  );
 });
 
 // Auth initialization state
@@ -94,3 +103,16 @@ class AuthInitController {
     }
   }
 }
+
+final conflictResolverProvider = Provider<ConflictResolver>((ref) {
+  return ConflictResolver(
+    resolvers: {
+      'profile': ProfileResolver(),
+    },
+  );
+});
+
+final imageManagerProvider = Provider<ImageManager>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return ImageManager(dio: apiClient.dio);
+});

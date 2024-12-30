@@ -8,6 +8,7 @@ import 'package:bentobook/core/theme/theme_provider.dart';
 import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'dart:developer' as dev;
+import 'dart:io';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -143,6 +144,42 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 50,
+                                backgroundColor:
+                                    theme.colorScheme.surfaceVariant,
+                                backgroundImage:
+                                    profile.localThumbnailPath != null
+                                        ? FileImage(
+                                            File(profile.localThumbnailPath!))
+                                        : null,
+                                child: profile.localThumbnailPath == null
+                                    ? Icon(Icons.person_outline,
+                                        size: 50,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant)
+                                    : null,
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: IconButton.filledTonal(
+                                  icon: const Icon(Icons.camera_alt),
+                                  onPressed: () {
+                                    // TODO: Implement image upload
+                                    dev.log('Upload profile picture');
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Row(

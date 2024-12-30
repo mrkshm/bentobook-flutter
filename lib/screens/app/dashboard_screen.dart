@@ -74,7 +74,10 @@ ${profileState.profile != null ? '''
   - Preferred Theme: ${profileState.profile!.attributes.preferredTheme ?? "Not set"}
   - Preferred Language: ${profileState.profile!.attributes.preferredLanguage ?? "Not set"}
   - Created At: ${profileState.profile!.attributes.createdAt}
-  - Updated At: ${profileState.profile!.attributes.updatedAt}''' : 'No profile data available'}''';
+  - Updated At: ${profileState.profile!.attributes.updatedAt}
+  - Avatar URLs: ${profileState.profile!.attributes.avatarUrls?.toString() ?? "None"}
+  - Local Thumbnail: ${profileState.profile!.localThumbnailPath ?? "Not downloaded"}
+  - Local Medium: ${profileState.profile!.localMediumPath ?? "Not downloaded"}''' : 'No profile data available'}''';
     });
   }
 

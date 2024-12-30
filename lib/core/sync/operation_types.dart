@@ -1,3 +1,3 @@
 enum OperationStatus { pending, processing, skipped, completed, failed }
 
-enum OperationType { themeUpdate, profileUpdate }
+enum OperationType { themeUpdate, profileUpdate, profileImageSync }

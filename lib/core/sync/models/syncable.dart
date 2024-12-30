@@ -8,6 +8,9 @@ abstract class Syncable {
 
   /// Current sync status of the object
   String? get syncStatus;
+
+  /// Type identifier for the syncable object
+  String get type;
 }
 
 /// Strategy to use when resolving conflicts between local and remote data

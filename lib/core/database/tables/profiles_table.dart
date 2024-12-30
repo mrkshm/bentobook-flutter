@@ -15,6 +15,11 @@ class Profiles extends Table {
   TextColumn get syncStatus => text().withDefault(const Constant('pending'))();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get createdAt => dateTime()();
+  TextColumn get thumbnailPath => text().nullable()();
+  TextColumn get mediumPath => text().nullable()();
+  TextColumn get thumbnailUrl => text().nullable()();
+  TextColumn get mediumUrl => text().nullable()();
+  DateTimeColumn get imageUpdatedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {userId};

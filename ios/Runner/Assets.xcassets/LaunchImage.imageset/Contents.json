@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "BentoBook 1.jpeg",
+      "filename" : "BentoBook.jpeg",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "BentoBook.jpeg",
+      "filename" : "BentoBook 1.jpeg",
       "idiom" : "universal",
       "scale" : "2x"
     },

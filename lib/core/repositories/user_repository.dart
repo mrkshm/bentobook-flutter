@@ -8,38 +8,71 @@ import 'package:bentobook/core/sync/models/syncable.dart';
 import 'dart:developer' as dev;
 
 class UserSyncable implements Syncable {
-  @override
-  final String id;
-  @override
-  final DateTime updatedAt;
-  @override
-  final String? syncStatus;
-  final api.User apiUser;
+  final User user;
 
-  UserSyncable({
-    required this.id,
-    required this.updatedAt,
-    this.syncStatus,
-    required this.apiUser,
-  });
+  UserSyncable(this.user);
+
+  @override
+  String get id => user.id.toString();
+
+  @override
+  DateTime get updatedAt => user.updatedAt;
+
+  @override
+  String? get syncStatus => user.syncStatus.toString();
+
+  @override
+  String get type => 'user';
 }
 
-class UserConflictResolver extends ConflictResolver<UserSyncable> {
+class ApiUserSyncable implements Syncable {
+  final api.User user;
+
+  ApiUserSyncable(this.user);
+
   @override
-  ConflictResolution<UserSyncable> mergeData(
-      UserSyncable localData, UserSyncable remoteData) {
-    // For now, use newerWins strategy
-    return resolveConflict(
-      localData: localData,
-      remoteData: remoteData,
-      strategy: ConflictStrategy.newerWins,
+  String get id => user.id;
+
+  @override
+  DateTime get updatedAt => user.attributes.createdAt ?? DateTime(0);
+
+  @override
+  String? get syncStatus => null;
+
+  @override
+  String get type => 'user';
+}
+
+class UserResolver implements ConflictResolver {
+  @override
+  Map<String, ConflictResolver> get resolvers => {'user': this};
+
+  @override
+  ConflictResolution<Syncable> resolveConflict({
+    required Syncable localData,
+    required Syncable remoteData,
+    ConflictStrategy strategy = ConflictStrategy.remoteWins,
+  }) {
+    return ConflictResolution(
+      shouldUpdate: strategy == ConflictStrategy.remoteWins ||
+          (strategy == ConflictStrategy.newerWins &&
+              remoteData.updatedAt.isAfter(localData.updatedAt)),
+      resolvedData: remoteData,
+    );
+  }
+
+  @override
+  ConflictResolution<Syncable> mergeData(Syncable local, Syncable remote) {
+    return ConflictResolution(
+      shouldUpdate: true,
+      resolvedData: remote,
     );
   }
 }
 
 class UserRepository {
   final AppDatabase _db;
-  final _conflictResolver = UserConflictResolver();
+  final _conflictResolver = UserResolver();
 
   UserRepository(this._db);
 
@@ -54,19 +87,8 @@ class UserRepository {
       if (existingUser != null) {
         dev.log('UserRepository: Found existing user, checking for conflicts');
 
-        final localData = UserSyncable(
-          id: existingUser.id.toString(),
-          updatedAt: existingUser.updatedAt,
-          syncStatus: existingUser.syncStatus.toString(),
-          apiUser: apiUser,
-        );
-
-        final remoteData = UserSyncable(
-          id: apiUser.id,
-          updatedAt: DateTime.now(), // API data is considered fresh
-          syncStatus: SyncStatus.synced.toString(),
-          apiUser: apiUser,
-        );
+        final localData = UserSyncable(existingUser);
+        final remoteData = ApiUserSyncable(apiUser);
 
         final resolution = _conflictResolver.resolveConflict(
           localData: localData,

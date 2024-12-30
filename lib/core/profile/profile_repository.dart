@@ -2,19 +2,30 @@ import 'package:bentobook/core/api/api_client.dart';
 import 'package:bentobook/core/api/models/profile.dart' as api;
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/operations/profile_operations.dart';
-import 'package:bentobook/core/sync/models/syncable.dart';
+import 'package:bentobook/core/sync/conflict_resolver.dart';
 import 'package:bentobook/core/sync/operation_types.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
-import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
+import 'package:bentobook/core/image/image_manager.dart';
 import 'dart:developer' as dev;
+import 'dart:io';
+import 'package:dio/dio.dart';
 
 class ProfileRepository {
   final ApiClient _apiClient;
   final AppDatabase _db;
   final QueueManager _queueManager;
-  final _resolver = ProfileResolver();
+  final ImageManager _imageManager;
 
-  ProfileRepository(this._apiClient, this._db, this._queueManager);
+  ProfileRepository({
+    required AppDatabase db,
+    required ApiClient apiClient,
+    required QueueManager queueManager,
+    required ConflictResolver resolver,
+    ImageManager? imageManager,
+  })  : _db = db,
+        _apiClient = apiClient,
+        _queueManager = queueManager,
+        _imageManager = imageManager ?? ImageManager(dio: Dio());
 
   api.Profile _convertToApiProfile(Profile dbProfile) {
     return api.Profile(
@@ -39,87 +50,47 @@ class ProfileRepository {
 
   Future<api.Profile> getProfile(int userId) async {
     try {
-      // 1. First try to get from local DB
-      dev.log(
-          'ProfileRepository: Checking local database first for user: $userId');
+      dev.log('ProfileRepository: Getting profile for user $userId');
+
+      // 1. Get local data
       final dbProfile = await _db.getProfile(userId);
+      final localProfile =
+          dbProfile != null ? _convertToApiProfile(dbProfile) : null;
 
-      if (dbProfile != null) {
-        dev.log('ProfileRepository: Found profile in local database');
-        final localProfile = _convertToApiProfile(dbProfile);
+      dev.log(
+          'ProfileRepository: Local profile avatar URLs: ${localProfile?.attributes.avatarUrls}');
+      dev.log(
+          'ProfileRepository: Local profile sync status: ${dbProfile?.syncStatus}');
 
-        // If we're offline or have pending changes, return local data
-        if (dbProfile.syncStatus == 'pending') {
-          dev.log('ProfileRepository: Using pending local changes');
-          return localProfile;
-        }
-
-        // If we're online, try to sync with server
+      // 2. Try server fetch if needed
+      if (localProfile == null || _isStale(dbProfile!.updatedAt)) {
         try {
-          dev.log('ProfileRepository: Attempting to sync with server');
+          dev.log('ProfileRepository: Fetching from server');
           final response = await _apiClient.getProfile(userId.toString());
+
           if (response.data != null) {
-            final apiProfile = response.data!;
+            dev.log(
+                'ProfileRepository: Server response avatar URLs: ${response.data?.attributes.avatarUrls}');
 
-            // Resolve any conflicts
-            final resolution = _resolver.resolveConflict(
-              localData: localProfile.toSyncable(),
-              remoteData: apiProfile.toSyncable(),
-              strategy: ConflictStrategy.merge,
-            );
-
-            if (resolution.shouldUpdate) {
+            if (response.data!.attributes.avatarUrls != null) {
+              dev.log('ProfileRepository: Starting image sync');
+              final profileWithImages = await syncProfileImages(response.data!);
               dev.log(
-                  'ProfileRepository: Updating local profile with server data');
-              final resolvedProfile = resolution.resolvedData.profile;
-              await _db.upsertProfile(
-                userId: userId,
-                firstName: resolvedProfile.attributes.firstName,
-                lastName: resolvedProfile.attributes.lastName,
-                about: resolvedProfile.attributes.about,
-                displayName: resolvedProfile.attributes.displayName,
-                preferredLanguage: resolvedProfile.attributes.preferredLanguage,
-                username: resolvedProfile.attributes.username,
-                syncStatus: 'synced',
-              );
-              return resolvedProfile;
+                  'ProfileRepository: Image sync complete. Local paths: ${profileWithImages.localThumbnailPath}, ${profileWithImages.localMediumPath}');
+              return profileWithImages;
             }
           }
         } catch (e) {
-          dev.log(
-              'ProfileRepository: Failed to sync with server, using local data',
-              error: e);
-          // On API error, return local data
-          return localProfile;
+          dev.log('ProfileRepository: Server fetch failed', error: e);
         }
-
-        return localProfile;
       }
 
-      // 2. If no local data, try to get from API
-      dev.log('ProfileRepository: No local profile, fetching from API');
-      final response = await _apiClient.getProfile(userId.toString());
-      if (response.data == null) {
-        throw Exception('Profile data is null');
+      if (localProfile == null) {
+        throw Exception('No profile data available');
       }
-
-      final apiProfile = response.data!;
-
-      // Save API data to local DB
-      await _db.upsertProfile(
-        userId: userId,
-        firstName: apiProfile.attributes.firstName,
-        lastName: apiProfile.attributes.lastName,
-        about: apiProfile.attributes.about,
-        displayName: apiProfile.attributes.displayName,
-        preferredLanguage: apiProfile.attributes.preferredLanguage,
-        username: apiProfile.attributes.username,
-        syncStatus: 'synced',
-      );
-
-      return apiProfile;
+      return localProfile;
     } catch (e) {
-      dev.log('ProfileRepository: Failed to get profile', error: e);
+      dev.log('ProfileRepository: Error getting profile', error: e);
       rethrow;
     }
   }
@@ -223,5 +194,90 @@ class ProfileRepository {
           error: e);
       rethrow;
     }
+  }
+
+  Future<api.Profile> syncProfileImages(api.Profile apiProfile) async {
+    if (apiProfile.attributes.avatarUrls == null) return apiProfile;
+
+    await _queueManager.enqueueOperation(
+      type: OperationType.profileImageSync,
+      payload: {
+        'avatar_urls': {
+          'thumbnail': apiProfile.attributes.avatarUrls!.thumbnail,
+          'medium': apiProfile.attributes.avatarUrls!.medium,
+        }
+      },
+    );
+
+    // Get local paths after sync
+    final thumbnailPath = await _imageManager.getImagePath(
+      int.parse(apiProfile.id),
+      variant: 'thumbnail',
+    );
+    final mediumPath = await _imageManager.getImagePath(
+      int.parse(apiProfile.id),
+      variant: 'medium',
+    );
+
+    // Return updated profile with local paths
+    return apiProfile.copyWith(
+      localThumbnailPath: thumbnailPath,
+      localMediumPath: mediumPath,
+    );
+  }
+
+  Future<String?> getProfileImagePath(int userId,
+      {bool thumbnail = true}) async {
+    final profile = await _db.getProfile(userId);
+    return thumbnail ? profile?.thumbnailPath : profile?.mediumPath;
+  }
+
+  Future<void> updateProfileImage(int userId, File imageFile) async {
+    try {
+      // 1. Upload image first
+      final response =
+          await _apiClient.uploadProfileImage(userId.toString(), imageFile);
+
+      // 2. Once upload succeeds, enqueue sync operation for downloading variants
+      if (response.data?.attributes.avatarUrls != null) {
+        await syncProfileImages(response.data!);
+
+        // 3. Clean up old images
+        await _imageManager.cleanupOldImages(userId);
+      }
+    } catch (e) {
+      dev.log('Failed to update profile image', error: e);
+      rethrow;
+    }
+  }
+
+  Future<void> handleImageConflict(int userId, DateTime serverTimestamp) async {
+    final profile = await _db.getProfile(userId);
+
+    if (profile?.imageUpdatedAt != null &&
+        profile!.imageUpdatedAt!.isBefore(serverTimestamp)) {
+      // Server has newer image, sync it
+      final apiProfile = await _apiClient.getProfile(userId.toString());
+      if (apiProfile.data?.attributes.avatarUrls != null) {
+        await syncProfileImages(apiProfile.data!);
+      }
+    }
+  }
+
+  bool _isStale(DateTime timestamp) {
+    final staleThreshold = Duration(minutes: 5);
+    return DateTime.now().difference(timestamp) > staleThreshold;
+  }
+
+  Future<api.Profile> _fetchFromServer(int userId) async {
+    final response = await _apiClient.getProfile(userId.toString());
+    if (response.data != null) {
+      final profile = response.data!;
+      if (profile.attributes.avatarUrls != null) {
+        return syncProfileImages(profile);
+      }
+      return profile;
+    }
+    throw Exception('Server returned no profile data');
   }
 }

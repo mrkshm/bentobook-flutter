@@ -4,8 +4,10 @@ import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/operations/profile_operations.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
+import 'package:bentobook/core/sync/conflict_resolver.dart';
 import 'package:bentobook/core/sync/operation_types.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
+import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
 import 'package:bentobook/core/theme/theme.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
@@ -82,7 +84,12 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
     required this.queueManager,
     required this.userId,
     required this.ref,
-  })  : _repository = ProfileRepository(api, db, queueManager),
+  })  : _repository = ProfileRepository(
+          apiClient: api,
+          db: db,
+          queueManager: queueManager,
+          resolver: ConflictResolver(resolvers: {'profile': ProfileResolver()}),
+        ),
         super(ThemeMode.system) {
     _loadStoredTheme();
 

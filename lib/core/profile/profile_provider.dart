@@ -11,22 +11,26 @@ class ProfileState {
   final Profile? profile;
   final bool isLoading;
   final String? error;
+  final bool isUploadingImage;
 
   const ProfileState({
     this.profile,
     this.isLoading = false,
     this.error,
+    this.isUploadingImage = false,
   });
 
   ProfileState copyWith({
     Profile? profile,
     bool? isLoading,
     String? error,
+    bool? isUploadingImage,
   }) {
     return ProfileState(
       profile: profile ?? this.profile,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      isUploadingImage: isUploadingImage ?? this.isUploadingImage,
     );
   }
 }

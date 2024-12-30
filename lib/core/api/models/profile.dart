@@ -11,9 +11,12 @@ class Profile with _$Profile {
     required String id,
     required String type,
     required ProfileAttributes attributes,
+    @JsonKey(ignore: true) String? localThumbnailPath,
+    @JsonKey(ignore: true) String? localMediumPath,
   }) = _Profile;
 
-  factory Profile.fromJson(Map<String, dynamic> json) => _$ProfileFromJson(json);
+  factory Profile.fromJson(Map<String, dynamic> json) =>
+      _$ProfileFromJson(json);
 }
 
 @freezed
@@ -40,17 +43,12 @@ class ProfileAttributes with _$ProfileAttributes {
 @freezed
 class ProfileUpdateRequest with _$ProfileUpdateRequest {
   const factory ProfileUpdateRequest({
-    @JsonKey(name: 'display_name')
-    String? displayName,
-    @JsonKey(name: 'first_name')
-    String? firstName,
-    @JsonKey(name: 'last_name')
-    String? lastName,
+    @JsonKey(name: 'display_name') String? displayName,
+    @JsonKey(name: 'first_name') String? firstName,
+    @JsonKey(name: 'last_name') String? lastName,
     String? about,
-    @JsonKey(name: 'preferred_theme')
-    String? preferredTheme,
-    @JsonKey(name: 'preferred_language')
-    String? preferredLanguage,
+    @JsonKey(name: 'preferred_theme') String? preferredTheme,
+    @JsonKey(name: 'preferred_language') String? preferredLanguage,
   }) = _ProfileUpdateRequest;
 
   factory ProfileUpdateRequest.fromJson(Map<String, dynamic> json) =>

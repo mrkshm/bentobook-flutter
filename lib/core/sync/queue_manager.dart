@@ -10,6 +10,7 @@ import 'package:bentobook/core/api/api_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'operation_types.dart';
 import 'dart:developer' as dev;
+import 'package:bentobook/core/image/image_manager.dart';
 
 class QueueManager {
   static const _maxRetries = 3;
@@ -24,13 +25,15 @@ class QueueManager {
   final ConnectivityService connectivity;
   StreamSubscription? _connectivitySubscription;
   bool _isProcessing = false;
+  final ImageManager _imageManager;
 
   QueueManager({
     required this.db,
     required this.api,
     required this.connectivity,
     required this.userId,
-  }) {
+    ImageManager? imageManager,
+  }) : _imageManager = imageManager ?? ImageManager(dio: api.dio) {
     _initConnectivity();
   }
 
@@ -198,6 +201,10 @@ class QueueManager {
           dev.log('QueueManager: Error processing theme update: $e');
           rethrow;
         }
+        break;
+      case OperationType.profileImageSync:
+        await _processProfileImageSync(op);
+        break;
     }
   }
 
@@ -229,6 +236,39 @@ class QueueManager {
           error: e.toString());
       rethrow;
     }
+  }
+
+  Future<void> _processProfileImageSync(OperationQueueData op) async {
+    try {
+      final payload = json.decode(op.payload);
+      final avatarUrls = payload['avatar_urls'] as Map<String, dynamic>;
+      final thumbnailUrl = avatarUrls['thumbnail'] as String;
+      final mediumUrl = avatarUrls['medium'] as String;
+
+      if (userId != null) {
+        await _imageManager.downloadAndSaveProfileImages(
+          userId: userId!,
+          thumbnailUrl: thumbnailUrl,
+          mediumUrl: mediumUrl,
+        );
+        dev.log('QueueManager: Profile images synced successfully');
+      }
+    } catch (e) {
+      dev.log('QueueManager: Failed to sync profile images', error: e);
+      rethrow;
+    }
+  }
+
+  Future<T> _retryWithBackoff<T>(Future<T> Function() operation) async {
+    for (var i = 0; i < _maxRetries; i++) {
+      try {
+        return await operation();
+      } catch (e) {
+        if (i == _maxRetries - 1) rethrow;
+        await Future.delayed(_retryDelays[i]);
+      }
+    }
+    throw Exception('Max retries exceeded');
   }
 
   void dispose() {

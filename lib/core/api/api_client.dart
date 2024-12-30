@@ -7,9 +7,11 @@ import 'models/user.dart';
 import 'api_endpoints.dart';
 import 'dart:developer' as dev;
 import 'dart:convert';
+import 'dart:io';
+import 'package:path/path.dart' as path;
 
 class ApiClient {
-  final Dio _dio;
+  late final Dio _dio;
   final EnvConfig config;
   String? _token;
   void Function()? onRefreshFailed;
@@ -392,7 +394,33 @@ class ApiClient {
     }
   }
 
+  Future<ApiResponse<Profile>> uploadProfileImage(
+      String userId, File imageFile) async {
+    try {
+      final formData = FormData.fromMap({
+        'image': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: path.basename(imageFile.path),
+        ),
+      });
+
+      final response = await _dio.post(
+        '${ApiEndpoints.profile}/$userId/avatar',
+        data: formData,
+      );
+
+      return ApiResponse<Profile>.fromJson(
+        response.data,
+        (json) => Profile.fromJson(json as Map<String, dynamic>),
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   ApiException _handleError(DioException error) {
     return ApiException.fromDioError(error);
   }
+
+  Dio get dio => _dio;
 }

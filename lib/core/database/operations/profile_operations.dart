@@ -62,4 +62,23 @@ extension ProfileOperations on AppDatabase {
     return (select(profiles)..where((p) => p.syncStatus.equals('pending')))
         .get();
   }
+
+  Future<void> updateProfileImages({
+    required int userId,
+    String? thumbnailPath,
+    String? mediumPath,
+    String? thumbnailUrl,
+    String? mediumUrl,
+    DateTime? imageUpdatedAt,
+  }) async {
+    await (update(profiles)..where((p) => p.userId.equals(userId))).write(
+      ProfilesCompanion(
+        thumbnailPath: Value(thumbnailPath),
+        mediumPath: Value(mediumPath),
+        thumbnailUrl: Value(thumbnailUrl),
+        mediumUrl: Value(mediumUrl),
+        imageUpdatedAt: Value(imageUpdatedAt),
+      ),
+    );
+  }
 }
