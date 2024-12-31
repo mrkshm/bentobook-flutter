@@ -78,17 +78,19 @@ class QueueManager {
       return;
     }
 
-    await db.into(db.operationQueue).insert(
-          OperationQueueCompanion.insert(
-            operationType: type,
-            payload: json.encode(payload),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            localTimestamp: DateTime.now(),
-            status: OperationStatus.pending,
-            retryCount: const Value(0),
-          ),
-        );
+    await _retryWithBackoff(() async {
+      await db.into(db.operationQueue).insert(
+            OperationQueueCompanion.insert(
+              operationType: type,
+              payload: json.encode(payload),
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              localTimestamp: DateTime.now(),
+              status: OperationStatus.pending,
+              retryCount: const Value(0),
+            ),
+          );
+    });
 
     final isOnline = await _isOnline();
     if (isOnline) {

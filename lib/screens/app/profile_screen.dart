@@ -9,6 +9,7 @@ import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
+import 'package:bentobook/screens/app/widgets/avatar_picker_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -171,8 +172,28 @@ class ProfileScreen extends ConsumerWidget {
                                 child: IconButton.filledTonal(
                                   icon: const Icon(Icons.camera_alt),
                                   onPressed: () {
-                                    // TODO: Implement image upload
-                                    dev.log('Upload profile picture');
+                                    AvatarPickerSheet.show(
+                                      context,
+                                      (imagePath) {
+                                        dev.log(
+                                            'TODO: Update profile image with path: $imagePath');
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Image upload coming soon!')),
+                                        );
+                                      },
+                                      () {
+                                        dev.log('TODO: Delete avatar');
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Avatar deletion coming soon!')),
+                                        );
+                                      },
+                                    );
                                   },
                                 ),
                               ),
