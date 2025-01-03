@@ -69,14 +69,16 @@ class AuthService extends StateNotifier<AuthState> {
   }
 
   Future<void> login(String email, String password) async {
-    state = const AuthState.loading();
-
     try {
+      dev.log('🔐 AUTH: Attempting login for email: $email');
+      state = const AuthState.loading();
+
       final response = await _apiClient.login(email: email, password: password);
+      dev.log('🔐 AUTH: Login response received: ${response.status}');
 
       // Add detailed logging
-      dev.log('Full response meta: ${response.meta?.toJson()}');
-      dev.log('Full response data: ${response.data?.toJson()}');
+      dev.log('🔐 AUTH: Full response meta: ${response.meta?.toJson()}');
+      dev.log('🔐 AUTH: Full response data: ${response.data?.toJson()}');
 
       final token = response.meta?.token;
       final userId = response.data?.id;
@@ -96,8 +98,8 @@ class AuthService extends StateNotifier<AuthState> {
 
       await _storage.write(key: _tokenKey, value: token);
       state = AuthState.authenticated(userId: userId, token: token);
-    } catch (e, stackTrace) {
-      dev.log('AuthService: Login failed', error: e, stackTrace: stackTrace);
+    } catch (e) {
+      dev.log('🔐 AUTH: Login error:', error: e);
       state = AuthState.error(e.toString());
     }
   }
@@ -131,12 +133,12 @@ class AuthService extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     try {
-      await _storage.delete(key: _tokenKey);
-      _apiClient.setToken(null);
+      dev.log('Attempting logout');
+      await _apiClient.logout();
+      dev.log('Logout successful');
       state = const AuthState.unauthenticated();
-      dev.log('AuthService: Logged out successfully');
     } catch (e) {
-      dev.log('AuthService: Logout failed', error: e);
+      dev.log('Logout error:', error: e);
       state = AuthState.error(e.toString());
     }
   }

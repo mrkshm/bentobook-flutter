@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/features/auth/widgets/login_form.dart';
 import 'package:bentobook/features/auth/widgets/signup_form.dart';
+import 'package:bentobook/core/config/env_config.dart';
 
 import 'package:go_router/go_router.dart';
 
@@ -18,6 +19,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final config = ref.watch(envConfigProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -69,6 +71,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       : const SignupForm(),
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color:
+                      theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Environment: ${config.environment.name.toUpperCase()}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'API: ${config.apiBaseUrl}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),

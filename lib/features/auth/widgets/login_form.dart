@@ -27,7 +27,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   }
 
   Future<void> _handleSubmit() async {
+    dev.log('===== LOGIN START =====', name: 'auth.form');
+
     if (!_formKey.currentState!.validate()) {
+      dev.log('Form validation failed', name: 'auth.form');
       return;
     }
 
@@ -37,12 +40,15 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     });
 
     try {
+      dev.log('Attempting login with email: ${_emailController.text}',
+          name: 'auth.form');
       await ref.read(authServiceProvider.notifier).login(
             _emailController.text,
             _passwordController.text,
           );
+      dev.log('Login API call completed', name: 'auth.form');
     } catch (e) {
-      dev.log('LoginForm: Login error', error: e);
+      dev.log('Login error occurred', error: e, name: 'auth.form');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -50,6 +56,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
         });
       }
     }
+    dev.log('===== LOGIN END =====', name: 'auth.form');
   }
 
   @override
@@ -58,15 +65,20 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     // Listen to auth state changes
     ref.listen(authServiceProvider, (previous, next) {
+      dev.log('🔐 LOGIN_FORM: Auth state changed from $previous to $next',
+          name: 'auth.login');
       next.maybeMap(
         authenticated: (_) {
-          dev.log('LoginForm: Login successful');
+          dev.log(
+              '🔐 LOGIN_FORM: Successfully authenticated, navigating to dashboard',
+              name: 'auth.login');
           if (mounted) {
-            context.go('/dashboard');
+            context.go('/app/dashboard');
           }
         },
         error: (state) {
-          dev.log('LoginForm: Login error state: ${state.message}');
+          dev.log('🔐 LOGIN_FORM: Auth error state: ${state.message}',
+              name: 'auth.login');
           if (mounted) {
             setState(() {
               _error = state.message;
@@ -120,7 +132,12 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             ],
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: _isLoading ? null : _handleSubmit,
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      dev.log('Login button pressed');
+                      _handleSubmit();
+                    },
               child: _isLoading
                   ? const SizedBox(
                       height: 20,
