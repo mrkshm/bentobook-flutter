@@ -174,7 +174,8 @@ class ProfileScreen extends ConsumerWidget {
                                   onPressed: () {
                                     AvatarPickerSheet.show(
                                       context,
-                                      (imagePath) {
+                                      int.parse(userId),
+                                      (String imagePath) {
                                         dev.log(
                                             'TODO: Update profile image with path: $imagePath');
                                         ScaffoldMessenger.of(context)
@@ -230,7 +231,8 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       ListTile(
                         title: const Text('Username'),
-                        subtitle: Text(profile.attributes.username),
+                        subtitle:
+                            Text(profile.attributes.username ?? 'Not set'),
                       ),
                       ListTile(
                         title: const Text('First Name'),

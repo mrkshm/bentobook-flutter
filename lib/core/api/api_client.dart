@@ -1,4 +1,3 @@
-import 'package:bentobook/core/api/models/profile.dart';
 import 'package:dio/dio.dart';
 import 'package:bentobook/core/config/env_config.dart';
 import 'api_exception.dart';
@@ -7,11 +6,11 @@ import 'models/user.dart';
 import 'api_endpoints.dart';
 import 'dart:developer' as dev;
 import 'dart:convert';
-import 'dart:io';
-import 'package:path/path.dart' as path;
+import 'profile_api.dart';
 
 class ApiClient {
   late final Dio _dio;
+  late final ProfileApi profileApi;
   final EnvConfig config;
   String? _token;
   void Function()? onRefreshFailed;
@@ -32,6 +31,7 @@ class ApiClient {
                 },
               ),
             ) {
+    profileApi = ProfileApi(_dio);
     if (config.enableLogging) {
       _dio.interceptors.add(LogInterceptor(
         requestBody: true,
@@ -297,124 +297,6 @@ class ApiClient {
     } catch (e) {
       dev.log('Failed to get current user', error: e);
       rethrow;
-    }
-  }
-
-  Future<ApiResponse<Profile>> getProfile(String userId) async {
-    try {
-      final response = await get(ApiEndpoints.profile);
-      return ApiResponse<Profile>.fromJson(
-        response as Map<String, dynamic>,
-        (json) => Profile.fromJson(json as Map<String, dynamic>),
-      );
-    } catch (e) {
-      dev.log('Failed to get profile', error: e);
-      rethrow;
-    }
-  }
-
-  Future<ApiResponse<Profile>> updateProfile({
-    required String userId,
-    String? firstName,
-    String? lastName,
-    String? about,
-    String? displayName,
-    String? preferredTheme,
-    String? preferredLanguage,
-    String? username,
-  }) async {
-    try {
-      dev.log('Updating profile');
-      final response = await _dio.put(
-        ApiEndpoints.updateProfile,
-        data: {
-          'first_name': firstName,
-          'last_name': lastName,
-          'about': about,
-          'display_name': displayName,
-          'preferred_theme': preferredTheme,
-          'preferred_language': preferredLanguage,
-          'username': username,
-        },
-      );
-
-      return ApiResponse<Profile>.fromJson(
-        response.data as Map<String, dynamic>,
-        (json) => Profile.fromJson(json as Map<String, dynamic>),
-      );
-    } on DioException catch (e) {
-      dev.log('Failed to update profile', error: e);
-      if (e.response?.statusCode == 422) {
-        throw ApiValidationException(
-            message: 'Validation error: ${e.response?.data['errors']}',
-            statusCode: e.response?.statusCode);
-      }
-      if (e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.connectionTimeout) {
-        throw ApiNetworkException(
-            message: 'Network error: ${e.message}',
-            statusCode: e.response?.statusCode);
-      }
-      throw ApiException.fromDioError(e);
-    } catch (e) {
-      dev.log('Unexpected error while updating profile', error: e);
-      throw ApiException(message: 'Failed to update profile: $e');
-    }
-  }
-
-  Future<bool> checkUsernameAvailability(String username) async {
-    try {
-      dev.log('ApiClient: Checking username availability');
-      final response = await _dio.post(
-        ApiEndpoints.verifyUsername,
-        data: {
-          'username': username,
-        },
-      );
-
-      dev.log('ApiClient: Raw response: ${response.data}');
-
-      if (response.data['status'] == 'success' &&
-          response.data['data'] != null &&
-          response.data['data']['attributes'] != null) {
-        return response.data['data']['attributes']['available'] as bool;
-      }
-
-      throw ApiException(message: 'Invalid response format from server');
-    } on DioException catch (e) {
-      dev.log('Failed to check username availability', error: e);
-      if (e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.connectionTimeout) {
-        throw ApiNetworkException(
-          message: 'Network error while checking username',
-          statusCode: e.response?.statusCode,
-        );
-      }
-      throw ApiException.fromDioError(e);
-    }
-  }
-
-  Future<ApiResponse<Profile>> uploadProfileImage(
-      String userId, File imageFile) async {
-    try {
-      final formData = FormData.fromMap({
-        'image': await MultipartFile.fromFile(
-          imageFile.path,
-          filename: path.basename(imageFile.path),
-        ),
-      });
-
-      final response = await _dio.post(
-        '${ApiEndpoints.profile}/$userId/avatar',
-        data: formData,
-      );
-
-      return ApiResponse<Profile>.fromJson(
-        response.data,
-        (json) => Profile.fromJson(json as Map<String, dynamic>),
-      );
-    } on DioException catch (e) {
-      throw _handleError(e);
     }
   }
 

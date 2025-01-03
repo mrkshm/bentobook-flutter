@@ -63,6 +63,7 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
         try {
           final isAvailable = await ref
               .read(apiClientProvider)
+              .profileApi
               .checkUsernameAvailability(newUsername);
 
           if (mounted) {

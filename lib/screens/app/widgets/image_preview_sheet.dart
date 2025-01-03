@@ -3,11 +3,19 @@ import 'dart:io';
 
 class ImagePreviewSheet extends StatelessWidget {
   final String imagePath;
+  final int fileSize;
 
   const ImagePreviewSheet({
     super.key,
     required this.imagePath,
+    required this.fileSize,
   });
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +39,11 @@ class ImagePreviewSheet extends StatelessWidget {
               height: 200,
               fit: BoxFit.cover,
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'File size: ${_formatFileSize(fileSize)}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
           Row(

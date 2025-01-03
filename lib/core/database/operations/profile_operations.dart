@@ -81,4 +81,20 @@ extension ProfileOperations on AppDatabase {
       ),
     );
   }
+
+  Future<void> updateProfileImage({
+    required int userId,
+    String? mediumPath,
+    String? thumbnailPath,
+  }) async {
+    await (update(profiles)..where((t) => t.userId.equals(userId))).write(
+      ProfilesCompanion(
+        mediumPath:
+            mediumPath == null ? const Value.absent() : Value(mediumPath),
+        thumbnailPath:
+            thumbnailPath == null ? const Value.absent() : Value(thumbnailPath),
+        imageUpdatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
 }

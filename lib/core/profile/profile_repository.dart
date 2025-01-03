@@ -1,4 +1,5 @@
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/api/api_exception.dart';
 import 'package:bentobook/core/api/models/profile.dart' as api;
 import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/database/operations/profile_operations.dart';
@@ -9,22 +10,26 @@ import 'package:bentobook/core/image/image_manager.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:bentobook/core/config/env_config.dart';
 
 class ProfileRepository {
   final ApiClient _apiClient;
   final AppDatabase _db;
   final QueueManager _queueManager;
   final ImageManager _imageManager;
+  final EnvConfig _config;
 
   ProfileRepository({
     required AppDatabase db,
     required ApiClient apiClient,
     required QueueManager queueManager,
     required ConflictResolver resolver,
+    required EnvConfig config,
     ImageManager? imageManager,
   })  : _db = db,
         _apiClient = apiClient,
         _queueManager = queueManager,
+        _config = config,
         _imageManager = imageManager ?? ImageManager(dio: Dio());
 
   api.Profile _convertToApiProfile(Profile dbProfile) {
@@ -66,20 +71,12 @@ class ProfileRepository {
       if (localProfile == null || _isStale(dbProfile!.updatedAt)) {
         try {
           dev.log('ProfileRepository: Fetching from server');
-          final response = await _apiClient.getProfile(userId.toString());
+          final serverProfile = await _fetchFromServer(userId);
 
-          if (response.data != null) {
-            dev.log(
-                'ProfileRepository: Server response avatar URLs: ${response.data?.attributes.avatarUrls}');
-
-            if (response.data!.attributes.avatarUrls != null) {
-              dev.log('ProfileRepository: Starting image sync');
-              final profileWithImages = await syncProfileImages(response.data!);
-              dev.log(
-                  'ProfileRepository: Image sync complete. Local paths: ${profileWithImages.localThumbnailPath}, ${profileWithImages.localMediumPath}');
-              return profileWithImages;
-            }
+          if (serverProfile.attributes.avatarUrls != null) {
+            return syncProfileImages(serverProfile);
           }
+          return serverProfile;
         } catch (e) {
           dev.log('ProfileRepository: Server fetch failed', error: e);
         }
@@ -185,7 +182,8 @@ class ProfileRepository {
   Future<bool> checkUsernameAvailability(String username) async {
     try {
       dev.log('ProfileRepository: Checking username availability: $username');
-      final isAvailable = await _apiClient.checkUsernameAvailability(username);
+      final isAvailable =
+          await _apiClient.profileApi.checkUsernameAvailability(username);
       dev.log(
           'ProfileRepository: Username $username is ${isAvailable ? 'available' : 'taken'}');
       return isAvailable;
@@ -196,34 +194,49 @@ class ProfileRepository {
     }
   }
 
-  Future<api.Profile> syncProfileImages(api.Profile apiProfile) async {
-    if (apiProfile.attributes.avatarUrls == null) return apiProfile;
+  Future<api.Profile> syncProfileImages(api.Profile profile) async {
+    // Delete old images first
+    final oldProfile = await _db.getProfile(int.parse(profile.id));
+    if (oldProfile != null) {
+      if (oldProfile.mediumPath != null) {
+        await _imageManager.deleteImage(oldProfile.mediumPath!);
+      }
+      if (oldProfile.thumbnailPath != null) {
+        await _imageManager.deleteImage(oldProfile.thumbnailPath!);
+      }
+    }
 
-    await _queueManager.enqueueOperation(
-      type: OperationType.profileImageSync,
-      payload: {
-        'avatar_urls': {
-          'thumbnail': apiProfile.attributes.avatarUrls!.thumbnail,
-          'medium': apiProfile.attributes.avatarUrls!.medium,
-        }
-      },
-    );
+    // Download and save new images
+    if (profile.attributes.avatarUrls != null) {
+      final avatarUrls = profile.attributes.avatarUrls!;
 
-    // Get local paths after sync
-    final thumbnailPath = await _imageManager.getImagePath(
-      int.parse(apiProfile.id),
-      variant: 'thumbnail',
-    );
-    final mediumPath = await _imageManager.getImagePath(
-      int.parse(apiProfile.id),
-      variant: 'medium',
-    );
+      if (avatarUrls.medium != null) {
+        final mediumUrl = '${_config.baseUrl}${avatarUrls.medium!}';
+        final mediumPath = await _imageManager.downloadImage(
+          mediumUrl,
+          _imageManager.generateImageFileName(int.parse(profile.id), 'medium'),
+        );
+        await _db.updateProfileImage(
+          userId: int.parse(profile.id),
+          mediumPath: mediumPath,
+        );
+      }
 
-    // Return updated profile with local paths
-    return apiProfile.copyWith(
-      localThumbnailPath: thumbnailPath,
-      localMediumPath: mediumPath,
-    );
+      if (avatarUrls.thumbnail != null) {
+        final thumbnailUrl = '${_config.baseUrl}${avatarUrls.thumbnail!}';
+        final thumbnailPath = await _imageManager.downloadImage(
+          thumbnailUrl,
+          _imageManager.generateImageFileName(
+              int.parse(profile.id), 'thumbnail'),
+        );
+        await _db.updateProfileImage(
+          userId: int.parse(profile.id),
+          thumbnailPath: thumbnailPath,
+        );
+      }
+    }
+
+    return profile;
   }
 
   Future<String?> getProfileImagePath(int userId,
@@ -235,8 +248,8 @@ class ProfileRepository {
   Future<void> updateProfileImage(int userId, File imageFile) async {
     try {
       // 1. Upload image first
-      final response =
-          await _apiClient.uploadProfileImage(userId.toString(), imageFile);
+      final response = await _apiClient.profileApi
+          .uploadAvatar(userId.toString(), imageFile);
 
       // 2. Once upload succeeds, enqueue sync operation for downloading variants
       if (response.data?.attributes.avatarUrls != null) {
@@ -257,7 +270,8 @@ class ProfileRepository {
     if (profile?.imageUpdatedAt != null &&
         profile!.imageUpdatedAt!.isBefore(serverTimestamp)) {
       // Server has newer image, sync it
-      final apiProfile = await _apiClient.getProfile(userId.toString());
+      final apiProfile =
+          await _apiClient.profileApi.getProfile(userId.toString());
       if (apiProfile.data?.attributes.avatarUrls != null) {
         await syncProfileImages(apiProfile.data!);
       }
@@ -270,7 +284,7 @@ class ProfileRepository {
   }
 
   Future<api.Profile> _fetchFromServer(int userId) async {
-    final response = await _apiClient.getProfile(userId.toString());
+    final response = await _apiClient.profileApi.getProfile(userId.toString());
     if (response.data != null) {
       final profile = response.data!;
       if (profile.attributes.avatarUrls != null) {
@@ -279,5 +293,23 @@ class ProfileRepository {
       return profile;
     }
     throw Exception('Server returned no profile data');
+  }
+
+  Future<api.Profile> uploadAvatar(int userId, File imageFile) async {
+    try {
+      // Upload to API and get response with processed image URLs
+      final response = await _apiClient.profileApi
+          .uploadAvatar(userId.toString(), imageFile);
+
+      if (response.data != null) {
+        // Use syncProfileImages to handle the API response
+        // This will download the processed images from the API
+        return await syncProfileImages(response.data!);
+      }
+      throw ApiException(message: 'Failed to upload avatar');
+    } catch (e) {
+      dev.log('Failed to upload avatar', error: e);
+      rethrow;
+    }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
+import 'dart:developer' as dev;
 
 class ImageManager {
   final Dio _dio;
@@ -113,13 +114,6 @@ class ImageManager {
     required String mediumUrl,
   }) async {
     try {
-      // Quick fix: replace localhost with localhost:5100
-      // TODO: remove this once we have a proper backend
-      final fixedThumbnailUrl = thumbnailUrl.replaceFirst(
-          'http://localhost/', 'http://localhost:5100/');
-      final fixedMediumUrl =
-          mediumUrl.replaceFirst('http://localhost/', 'http://localhost:5100/');
-
       final directory = await getApplicationDocumentsDirectory();
       final profileDir = Directory('${directory.path}/profiles/$userId');
       await profileDir.create(recursive: true);
@@ -127,7 +121,7 @@ class ImageManager {
       await _retryWithBackoff(() async {
         // Download thumbnail
         final thumbnailResponse = await _dio.get(
-          fixedThumbnailUrl,
+          thumbnailUrl,
           options: Options(responseType: ResponseType.bytes),
         );
         final thumbnailFile = File('${profileDir.path}/thumbnail.jpg');
@@ -135,7 +129,7 @@ class ImageManager {
 
         // Download medium
         final mediumResponse = await _dio.get(
-          fixedMediumUrl,
+          mediumUrl,
           options: Options(responseType: ResponseType.bytes),
         );
         final mediumFile = File('${profileDir.path}/medium.jpg');
@@ -156,6 +150,27 @@ class ImageManager {
       }
     }
     throw Exception('Retry failed after $_maxRetries attempts');
+  }
+
+  Future<void> cleanupTemporaryFiles(int userId) async {
+    final directory = await getTemporaryDirectory();
+    final dir = Directory(directory.path);
+    final files = dir.listSync();
+
+    for (var file in files) {
+      if (file.path.contains('avatar_temp_$userId')) {
+        try {
+          await File(file.path).delete();
+        } catch (e) {
+          dev.log('Failed to delete temporary file: ${file.path}', error: e);
+        }
+      }
+    }
+  }
+
+  String generateTempFileName(int userId, String prefix) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return '${prefix}_${userId}_$timestamp.jpg';
   }
 }
 

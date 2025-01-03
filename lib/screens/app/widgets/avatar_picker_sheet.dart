@@ -1,35 +1,43 @@
+import 'dart:io';
+
+import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/screens/app/widgets/image_preview_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class AvatarPickerSheet extends StatefulWidget {
+class AvatarPickerSheet extends ConsumerStatefulWidget {
   final Function(String) onImagePicked;
   final Function onDelete;
+  final int userId;
 
   const AvatarPickerSheet({
     super.key,
     required this.onImagePicked,
     required this.onDelete,
+    required this.userId,
   });
 
-  static void show(
-      BuildContext context, Function(String) onImagePicked, Function onDelete) {
+  static void show(BuildContext context, int userId,
+      Function(String) onImagePicked, Function onDelete) {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) => AvatarPickerSheet(
         onImagePicked: onImagePicked,
         onDelete: onDelete,
+        userId: userId,
       ),
     );
   }
 
   @override
-  State<AvatarPickerSheet> createState() => _AvatarPickerSheetState();
+  ConsumerState<AvatarPickerSheet> createState() => _AvatarPickerSheetState();
 }
 
-class _AvatarPickerSheetState extends State<AvatarPickerSheet> {
+class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet> {
   bool _isLoading = false;
   String? _error;
   Timer? _loadingTimer;
@@ -59,6 +67,9 @@ class _AvatarPickerSheetState extends State<AvatarPickerSheet> {
       _setLoading(true);
       _error = null;
 
+      final imageManager = ref.read(imageManagerProvider);
+      final profileRepository = ref.read(profileRepositoryProvider);
+
       // Pick image
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: source);
@@ -87,17 +98,55 @@ class _AvatarPickerSheetState extends State<AvatarPickerSheet> {
 
       if (croppedFile == null || !mounted) return;
 
-      // Show preview sheet
+      // Generate a temporary file name
+      final tempPath =
+          imageManager.generateTempFileName(widget.userId, 'avatar_temp');
+
+      // Compress and save to temp location
+      final compressedFile = await FlutterImageCompress.compressAndGetFile(
+        croppedFile.path,
+        tempPath,
+        quality: 85,
+        format: CompressFormat.jpeg,
+        minWidth: 1000,
+        minHeight: 1000,
+      );
+
+      if (!mounted) return;
+
+      final fileSize = await compressedFile!.length();
+
+      if (!mounted) return;
+      // Show preview sheet with file info
       final confirmed = await showModalBottomSheet<bool>(
         context: context,
         builder: (context) => ImagePreviewSheet(
-          imagePath: croppedFile.path,
+          imagePath: compressedFile.path,
+          fileSize: fileSize,
         ),
       );
 
       if (confirmed == true && mounted) {
-        widget.onImagePicked(croppedFile.path);
-        Navigator.pop(context);
+        try {
+          // Upload the image
+          await profileRepository.uploadAvatar(
+              widget.userId, File(compressedFile.path));
+          if (mounted) {
+            Navigator.pop(context);
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _error = 'Failed to upload image: $e';
+            });
+          }
+        } finally {
+          // Clean up temporary file
+          await imageManager.deleteImage(compressedFile.path);
+        }
+      } else {
+        // Clean up temporary file if not confirmed
+        await imageManager.deleteImage(compressedFile.path);
       }
     } catch (e) {
       if (!mounted) return;

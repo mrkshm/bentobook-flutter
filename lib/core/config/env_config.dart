@@ -8,6 +8,7 @@ enum Environment {
 class EnvConfig {
   final Environment environment;
   final String apiBaseUrl;
+  final String baseUrl;
   final Duration connectionTimeout;
   final Duration receiveTimeout;
   final bool enableLogging;
@@ -15,6 +16,7 @@ class EnvConfig {
   EnvConfig({
     required this.environment,
     required this.apiBaseUrl,
+    required this.baseUrl,
     this.connectionTimeout = const Duration(seconds: 30),
     this.receiveTimeout = const Duration(seconds: 30),
     this.enableLogging = false,
@@ -24,6 +26,7 @@ class EnvConfig {
     return EnvConfig(
       environment: Environment.dev,
       apiBaseUrl: 'http://localhost:5100/api/v1',
+      baseUrl: 'http://localhost:5100',
       enableLogging: true,
     );
   }
@@ -32,6 +35,7 @@ class EnvConfig {
     return EnvConfig(
       environment: Environment.prod,
       apiBaseUrl: 'https://bentobook.app/api/v1',
+      baseUrl: 'https://bentobook.app',
       enableLogging: false,
     );
   }

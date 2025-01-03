@@ -50,16 +50,12 @@ final queueManagerProvider = Provider<QueueManager>((ref) {
 });
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  final db = ref.watch(databaseProvider);
-  final api = ref.watch(apiClientProvider);
-  final queueManager = ref.watch(queueManagerProvider);
-  final resolver = ref.watch(conflictResolverProvider);
-
   return ProfileRepository(
-    db: db,
-    apiClient: api,
-    queueManager: queueManager,
-    resolver: resolver,
+    db: ref.read(databaseProvider),
+    apiClient: ref.read(apiClientProvider),
+    queueManager: ref.read(queueManagerProvider),
+    resolver: ref.read(conflictResolverProvider),
+    config: ref.read(envConfigProvider),
   );
 });
 
