@@ -17,6 +17,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canEdit = ref.watch(canEditAvatarProvider);
     final theme = Theme.of(context);
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
@@ -156,48 +157,49 @@ class ProfileScreen extends ConsumerWidget {
                                 backgroundColor:
                                     theme.colorScheme.surfaceContainerHighest,
                               ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: IconButton.filledTonal(
-                                  icon: const Icon(Icons.camera_alt),
-                                  onPressed: () {
-                                    AvatarPickerSheet.show(
-                                      context,
-                                      int.parse(userId),
-                                      (String imagePath) async {
-                                        try {
-                                          await ref
-                                              .read(profileProvider.notifier)
-                                              .updateAvatar(
-                                                int.parse(userId),
-                                                File(imagePath),
+                              if (canEdit)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: IconButton.filledTonal(
+                                    icon: const Icon(Icons.camera_alt),
+                                    onPressed: () {
+                                      AvatarPickerSheet.show(
+                                        context,
+                                        int.parse(userId),
+                                        (String imagePath) async {
+                                          try {
+                                            await ref
+                                                .read(profileProvider.notifier)
+                                                .updateAvatar(
+                                                  int.parse(userId),
+                                                  File(imagePath),
+                                                );
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                    content: Text(
+                                                        'Failed to update avatar: $e')),
                                               );
-                                        } catch (e) {
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Failed to update avatar: $e')),
-                                            );
+                                            }
                                           }
-                                        }
-                                      },
-                                      () async {
-                                        // Handle delete avatar
-                                        // TODO: Implement avatar deletion
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Avatar deletion coming soon!')),
-                                        );
-                                      },
-                                    );
-                                  },
+                                        },
+                                        () async {
+                                          // Handle delete avatar
+                                          // TODO: Implement avatar deletion
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                                content: Text(
+                                                    'Avatar deletion coming soon!')),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),

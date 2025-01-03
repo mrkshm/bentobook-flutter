@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:bentobook/core/api/models/profile.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
-import 'package:bentobook/core/image/image_manager.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:flutter/painting.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ProfileState {
   final Profile? profile;
@@ -44,12 +44,10 @@ class ProfileState {
 
 class ProfileNotifier extends StateNotifier<ProfileState> {
   final ProfileRepository _repository;
-  final ImageManager _imageManager;
   final Ref _ref;
   StreamSubscription<Profile?>? _profileSubscription;
 
-  ProfileNotifier(this._repository, this._imageManager, this._ref)
-      : super(const ProfileState());
+  ProfileNotifier(this._repository, this._ref) : super(const ProfileState());
 
   Future<void> initializeProfile(int userId) async {
     try {
@@ -150,34 +148,28 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
   Future<void> updateAvatar(int userId, File imageFile) async {
     state = state.copyWith(isUploadingImage: true);
+    final ref = _ref;
     try {
+      // Clear Flutter's image cache before and after update
       imageCache.clear();
       imageCache.clearLiveImages();
 
-      // Get original filename and sanitize it
-      String originalName = imageFile.path.split('/').last;
-      // Remove any existing timestamp pattern if present
-      originalName = originalName.replaceAll(RegExp(r'_\d+\.[^.]+$'), '');
-      // Truncate if too long (keeping extension)
-      String extension =
-          originalName.contains('.') ? '.${originalName.split('.').last}' : '';
-      String nameWithoutExt = originalName.replaceAll(extension, '');
-      if (nameWithoutExt.length > 30) {
-        nameWithoutExt = nameWithoutExt.substring(0, 30);
-      }
-      // Add timestamp to ensure uniqueness
-      String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      String newFilename = '${nameWithoutExt}_${userId}_$timestamp$extension';
+      // Upload and sync image
+      var updatedProfile = await _repository.uploadAvatar(userId, imageFile);
 
-      // Use repository to handle the upload and sync
-      var updatedProfile = await _repository.uploadAvatar(userId, imageFile,
-          filename: newFilename);
-
+      // Force UI refresh by updating state with new timestamp
       state = state.copyWith(
         profile: updatedProfile,
         isUploadingImage: false,
         lastUpdated: DateTime.now().millisecondsSinceEpoch,
       );
+
+      // Clear cache again after update
+      imageCache.clear();
+      imageCache.clearLiveImages();
+
+      // Force a profile refresh to ensure UI is updated
+      await ref.refresh(profileProvider.notifier).refreshProfile(userId);
     } catch (e) {
       state = state.copyWith(isUploadingImage: false, error: e.toString());
       rethrow;
@@ -189,8 +181,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 final profileProvider =
     StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
   final repository = ref.read(profileRepositoryProvider);
-  final imageManager = ref.read(imageManagerProvider);
-  final notifier = ProfileNotifier(repository, imageManager, ref);
+  final notifier = ProfileNotifier(repository, ref);
 
   // Listen to auth state changes
   ref.listen(authServiceProvider, (previous, next) {
@@ -218,4 +209,23 @@ final profileProvider =
   }, fireImmediately: true);
 
   return notifier;
+});
+
+// Add this provider
+final isOnlineProvider = StreamProvider<bool>((ref) async* {
+  // Get initial connectivity state
+  final initialStatus = await Connectivity().checkConnectivity();
+  yield !initialStatus.contains(ConnectivityResult.none);
+
+  // Then yield subsequent changes
+  await for (final status in Connectivity().onConnectivityChanged) {
+    yield !status.contains(ConnectivityResult.none);
+  }
+});
+
+// Add this computed provider
+final canEditAvatarProvider = Provider<bool>((ref) {
+  final isOnline = ref.watch(isOnlineProvider).value ?? false;
+  dev.log('canEditAvatarProvider: isOnline = $isOnline'); // Add logging
+  return isOnline;
 });
