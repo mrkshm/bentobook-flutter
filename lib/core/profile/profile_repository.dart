@@ -203,20 +203,6 @@ class ProfileRepository {
     }
   }
 
-  String? _extractTimestamp(String? path) {
-    if (path == null) return null;
-
-    // Match any timestamp pattern in the path
-    final timestampRegex = RegExp(r'_(\d+)\.(jpg|webp|png)$');
-    final match = timestampRegex.firstMatch(path);
-
-    dev.log('ProfileRepository: Extracting timestamp from path:');
-    dev.log('  Input path: $path');
-    dev.log('  Extracted timestamp: ${match?.group(1)}');
-
-    return match?.group(1);
-  }
-
   Future<api.Profile> syncProfileImages(api.Profile profile,
       {bool forceSync = false}) async {
     try {
