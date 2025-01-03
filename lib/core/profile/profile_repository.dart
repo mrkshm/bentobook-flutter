@@ -354,4 +354,32 @@ class ProfileRepository {
       rethrow;
     }
   }
+
+  Future<api.Profile> deleteAvatar(int userId) async {
+    try {
+      // 1. Delete from server
+      final response =
+          await _apiClient.profileApi.deleteAvatar(userId.toString());
+
+      // 2. Clean up local files
+      await _imageManager.cleanupOldImages(userId);
+
+      // 3. Update local DB profile
+      final dbProfile = await _db.getProfile(userId);
+      if (dbProfile != null) {
+        await _db.updateProfile(
+          dbProfile.copyWith(
+            thumbnailPath: const Value(null),
+            mediumPath: const Value(null),
+            imageUpdatedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+
+      return response.data!;
+    } catch (e) {
+      dev.log('Failed to delete avatar', error: e);
+      rethrow;
+    }
+  }
 }

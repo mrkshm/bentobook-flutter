@@ -114,4 +114,16 @@ class ProfileApi {
       throw ApiException.fromDioError(e);
     }
   }
+
+  Future<ApiResponse<Profile>> deleteAvatar(String userId) async {
+    try {
+      final response = await _dio.delete(ApiEndpoints.deleteAvatar);
+      return ApiResponse<Profile>.fromJson(
+        response.data,
+        (json) => Profile.fromJson(json as Map<String, dynamic>),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }

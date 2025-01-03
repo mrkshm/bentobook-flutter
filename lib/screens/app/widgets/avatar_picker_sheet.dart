@@ -197,9 +197,24 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet> {
             ListTile(
               leading: const Icon(Icons.delete),
               title: const Text('Delete Avatar'),
-              onTap: () {
-                widget.onDelete();
-                Navigator.pop(context);
+              onTap: () async {
+                try {
+                  _setLoading(true);
+                  await ref
+                      .read(profileProvider.notifier)
+                      .deleteAvatar(widget.userId);
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    setState(() {
+                      _error = 'Failed to delete avatar: $e';
+                    });
+                  }
+                } finally {
+                  _setLoading(false);
+                }
               },
             ),
           ],

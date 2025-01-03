@@ -175,6 +175,26 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       rethrow;
     }
   }
+
+  Future<void> deleteAvatar(int userId) async {
+    try {
+      imageCache.clear();
+      imageCache.clearLiveImages();
+
+      final updatedProfile = await _repository.deleteAvatar(userId);
+
+      state = state.copyWith(
+        profile: updatedProfile,
+        lastUpdated: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      // Force a profile refresh
+      await refreshProfile(userId);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
 }
 
 // Profile state provider
