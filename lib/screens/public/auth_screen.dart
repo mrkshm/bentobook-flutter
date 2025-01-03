@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/features/auth/widgets/login_form.dart';
 import 'package:bentobook/features/auth/widgets/signup_form.dart';
-import 'dart:developer' as dev;
 
 import 'package:go_router/go_router.dart';
 
@@ -19,14 +18,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Login / Sign Up'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            dev.log('Auth: Going back to landing');
             context.go('/');
           },
         ),
@@ -58,16 +56,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 },
                 style: ButtonStyle(
                   side: WidgetStateProperty.all(BorderSide(
-                    color: theme.colorScheme.primary.withAlpha(128), // 0.5 opacity = 128 in alpha (255 * 0.5)
+                    color: theme.colorScheme.primary.withAlpha(
+                        128), // 0.5 opacity = 128 in alpha (255 * 0.5)
                   )),
                 ),
               ),
               const SizedBox(height: 32),
               Expanded(
                 child: SingleChildScrollView(
-                  child: _selectedSegment == 0 
-                    ? const LoginForm() 
-                    : const SignupForm(),
+                  child: _selectedSegment == 0
+                      ? const LoginForm()
+                      : const SignupForm(),
                 ),
               ),
             ],

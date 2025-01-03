@@ -14,7 +14,7 @@ class AuthService extends StateNotifier<AuthState> {
   final FlutterSecureStorage _storage;
   final UserRepository _userRepository;
 
-  AuthService(this._apiClient, this._storage, this._userRepository) 
+  AuthService(this._apiClient, this._storage, this._userRepository)
       : super(const AuthState.initial()) {
     _apiClient.onRefreshFailed = () {
       _storage.delete(key: _tokenKey);
@@ -70,15 +70,23 @@ class AuthService extends StateNotifier<AuthState> {
 
   Future<void> login(String email, String password) async {
     state = const AuthState.loading();
-    
+
     try {
       final response = await _apiClient.login(email: email, password: password);
-      
+
+      // Add detailed logging
+      dev.log('Full response meta: ${response.meta?.toJson()}');
+      dev.log('Full response data: ${response.data?.toJson()}');
+
       final token = response.meta?.token;
       final userId = response.data?.id;
-      
+
+      dev.log('Extracted token: $token');
+      dev.log('Extracted userId: $userId');
+
       if (token == null || userId == null) {
-        throw ApiException(message: 'Invalid response from server');
+        throw ApiException(
+            message: 'Invalid response from server: token or userId is null');
       }
 
       // Save user data to local database
@@ -88,21 +96,22 @@ class AuthService extends StateNotifier<AuthState> {
 
       await _storage.write(key: _tokenKey, value: token);
       state = AuthState.authenticated(userId: userId, token: token);
-    } catch (e) {
-      dev.log('AuthService: Login failed', error: e);
+    } catch (e, stackTrace) {
+      dev.log('AuthService: Login failed', error: e, stackTrace: stackTrace);
       state = AuthState.error(e.toString());
     }
   }
 
   Future<void> register(String email, String password) async {
     state = const AuthState.loading();
-    
+
     try {
-      final response = await _apiClient.register(email: email, password: password);
-      
+      final response =
+          await _apiClient.register(email: email, password: password);
+
       final token = response.meta?.token;
       final userId = response.data?.id;
-      
+
       if (token == null || userId == null) {
         throw ApiException(message: 'Invalid response from server');
       }
@@ -133,7 +142,8 @@ class AuthService extends StateNotifier<AuthState> {
   }
 }
 
-final authServiceProvider = StateNotifierProvider<AuthService, AuthState>((ref) {
+final authServiceProvider =
+    StateNotifierProvider<AuthService, AuthState>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   const storage = FlutterSecureStorage();
   final userRepository = ref.watch(userRepositoryProvider);

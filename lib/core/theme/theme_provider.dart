@@ -89,6 +89,7 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
           db: db,
           queueManager: queueManager,
           resolver: ConflictResolver(resolvers: {'profile': ProfileResolver()}),
+          config: ref.read(envConfigProvider),
         ),
         super(ThemeMode.system) {
     _loadStoredTheme();

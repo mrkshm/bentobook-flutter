@@ -3,15 +3,44 @@ PODS:
     - Flutter
     - FlutterMacOS
   - Flutter (1.0.0)
+  - flutter_image_compress_common (1.0.0):
+    - Flutter
+    - Mantle
+    - SDWebImage
+    - SDWebImageWebPCoder
   - flutter_secure_storage (6.0.0):
     - Flutter
+  - image_cropper (0.0.4):
+    - Flutter
+    - TOCropViewController (~> 2.7.4)
   - image_picker_ios (0.0.1):
     - Flutter
+  - libwebp (1.3.2):
+    - libwebp/demux (= 1.3.2)
+    - libwebp/mux (= 1.3.2)
+    - libwebp/sharpyuv (= 1.3.2)
+    - libwebp/webp (= 1.3.2)
+  - libwebp/demux (1.3.2):
+    - libwebp/webp
+  - libwebp/mux (1.3.2):
+    - libwebp/demux
+  - libwebp/sharpyuv (1.3.2)
+  - libwebp/webp (1.3.2):
+    - libwebp/sharpyuv
+  - Mantle (2.2.0):
+    - Mantle/extobjc (= 2.2.0)
+  - Mantle/extobjc (2.2.0)
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
   - permission_handler_apple (9.3.0):
     - Flutter
+  - SDWebImage (5.20.0):
+    - SDWebImage/Core (= 5.20.0)
+  - SDWebImage/Core (5.20.0)
+  - SDWebImageWebPCoder (0.14.6):
+    - libwebp (~> 1.0)
+    - SDWebImage/Core (~> 5.17)
   - sqlite3 (3.47.2):
     - sqlite3/common (= 3.47.2)
   - sqlite3/common (3.47.2)
@@ -31,11 +60,14 @@ PODS:
     - sqlite3/fts5
     - sqlite3/perf-threadsafe
     - sqlite3/rtree
+  - TOCropViewController (2.7.4)
 
 DEPENDENCIES:
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/darwin`)
   - Flutter (from `Flutter`)
+  - flutter_image_compress_common (from `.symlinks/plugins/flutter_image_compress_common/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
+  - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
@@ -43,15 +75,24 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - libwebp
+    - Mantle
+    - SDWebImage
+    - SDWebImageWebPCoder
     - sqlite3
+    - TOCropViewController
 
 EXTERNAL SOURCES:
   connectivity_plus:
     :path: ".symlinks/plugins/connectivity_plus/darwin"
   Flutter:
     :path: Flutter
+  flutter_image_compress_common:
+    :path: ".symlinks/plugins/flutter_image_compress_common/ios"
   flutter_secure_storage:
     :path: ".symlinks/plugins/flutter_secure_storage/ios"
+  image_cropper:
+    :path: ".symlinks/plugins/image_cropper/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
   path_provider_foundation:
@@ -64,12 +105,19 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   connectivity_plus: 18382e7311ba19efcaee94442b23b32507b20695
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_image_compress_common: ec1d45c362c9d30a3f6a0426c297f47c52007e3e
   flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
+  image_cropper: 37d40f62177c101ff4c164906d259ea2c3aa70cf
   image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
+  libwebp: 1786c9f4ff8a279e4dac1e8f385004d5fc253009
+  Mantle: c5aa8794a29a022dfbbfc9799af95f477a69b62d
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
+  SDWebImage: 73c6079366fea25fa4bb9640d5fb58f0893facd8
+  SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   sqlite3: 7559e33dae4c78538df563795af3a86fc887ee71
   sqlite3_flutter_libs: 1b4e98da20ebd4e9b1240269b78cdcf492dbe9f3
+  TOCropViewController: 80b8985ad794298fb69d3341de183f33d1853654
 
 PODFILE CHECKSUM: 819463e6a0290f5a72f145ba7cde16e8b6ef0796
 

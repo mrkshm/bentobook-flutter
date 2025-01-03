@@ -1,4 +1,5 @@
 import 'package:bentobook/core/profile/profile_provider.dart';
+import 'package:bentobook/screens/app/dashboard_screen.dart';
 import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,12 +10,16 @@ import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
+import 'package:bentobook/screens/app/widgets/avatar_picker_sheet.dart';
+import 'package:bentobook/screens/app/widgets/profile_avatar.dart';
+import 'package:page_transition/page_transition.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canEdit = ref.watch(canEditAvatarProvider);
     final theme = Theme.of(context);
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
@@ -45,7 +50,13 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: theme.colorScheme.surface,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/app/dashboard'),
+          onPressed: () {
+            context.go('/app/dashboard');
+            PageTransition(
+              type: PageTransitionType.leftToRight,
+              child: const DashboardScreen(),
+            );
+          },
         ),
       ),
       body: SafeArea(
@@ -149,33 +160,54 @@ class ProfileScreen extends ConsumerWidget {
                         child: Center(
                           child: Stack(
                             children: [
-                              CircleAvatar(
-                                radius: 50,
+                              ProfileAvatar(
+                                imagePath: profile.localThumbnailPath,
                                 backgroundColor:
-                                    theme.colorScheme.surfaceVariant,
-                                backgroundImage:
-                                    profile.localThumbnailPath != null
-                                        ? FileImage(
-                                            File(profile.localThumbnailPath!))
-                                        : null,
-                                child: profile.localThumbnailPath == null
-                                    ? Icon(Icons.person_outline,
-                                        size: 50,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant)
-                                    : null,
+                                    theme.colorScheme.surfaceContainerHighest,
                               ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: IconButton.filledTonal(
-                                  icon: const Icon(Icons.camera_alt),
-                                  onPressed: () {
-                                    // TODO: Implement image upload
-                                    dev.log('Upload profile picture');
-                                  },
+                              if (canEdit)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: IconButton.filledTonal(
+                                    icon: const Icon(Icons.camera_alt),
+                                    onPressed: () {
+                                      AvatarPickerSheet.show(
+                                        context,
+                                        int.parse(userId),
+                                        (String imagePath) async {
+                                          try {
+                                            await ref
+                                                .read(profileProvider.notifier)
+                                                .updateAvatar(
+                                                  int.parse(userId),
+                                                  File(imagePath),
+                                                );
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                    content: Text(
+                                                        'Failed to update avatar: $e')),
+                                              );
+                                            }
+                                          }
+                                        },
+                                        () async {
+                                          // Handle delete avatar
+                                          // TODO: Implement avatar deletion
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                                content: Text(
+                                                    'Avatar deletion coming soon!')),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -209,7 +241,8 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       ListTile(
                         title: const Text('Username'),
-                        subtitle: Text(profile.attributes.username),
+                        subtitle:
+                            Text(profile.attributes.username ?? 'Not set'),
                       ),
                       ListTile(
                         title: const Text('First Name'),

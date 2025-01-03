@@ -1,3 +1,4 @@
+import 'package:bentobook/core/shared/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,26 +20,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     dev.log('DashboardScreen: initState');
-
-    // Initialize profile after first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authState = ref.read(authServiceProvider);
-      dev.log('DashboardScreen: Initializing with auth state: $authState');
-
-      authState.maybeMap(
-        authenticated: (state) {
-          final userId = int.tryParse(state.userId);
-          dev.log('DashboardScreen: Parsed user ID: $userId');
-          if (userId != null) {
-            dev.log('DashboardScreen: Triggering profile initialization');
-            ref.read(profileProvider.notifier).initializeProfile(userId);
-          }
-        },
-        orElse: () {
-          dev.log('DashboardScreen: Not authenticated in initState');
-        },
-      );
-    });
   }
 
   void _showCurrentUser() {
@@ -59,6 +40,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   void _showProfileState() {
     final profileState = ref.read(profileProvider);
+    final config = ref.read(envConfigProvider);
+    dev.log('DashboardScreen: Profile state details:');
+    dev.log('- Loading: ${profileState.isLoading}');
+    dev.log('- Has Profile: ${profileState.profile != null}');
+    dev.log('- Profile Data: ${profileState.profile?.toJson()}');
+    dev.log('- Error: ${profileState.error}');
 
     setState(() {
       _testResult = '''Current Profile State:
@@ -67,17 +54,15 @@ Error: ${profileState.error ?? 'None'}
 Profile Data:
 ${profileState.profile != null ? '''
   - Username: ${profileState.profile!.attributes.username}
-  - First Name: ${profileState.profile!.attributes.firstName ?? "Not set"}
-  - Last Name: ${profileState.profile!.attributes.lastName ?? "Not set"}
-  - About: ${profileState.profile!.attributes.about ?? "Not set"}
-  - Display Name: ${profileState.profile!.attributes.displayName ?? "Not set"}
-  - Preferred Theme: ${profileState.profile!.attributes.preferredTheme ?? "Not set"}
-  - Preferred Language: ${profileState.profile!.attributes.preferredLanguage ?? "Not set"}
-  - Created At: ${profileState.profile!.attributes.createdAt}
-  - Updated At: ${profileState.profile!.attributes.updatedAt}
-  - Avatar URLs: ${profileState.profile!.attributes.avatarUrls?.toString() ?? "None"}
-  - Local Thumbnail: ${profileState.profile!.localThumbnailPath ?? "Not downloaded"}
-  - Local Medium: ${profileState.profile!.localMediumPath ?? "Not downloaded"}''' : 'No profile data available'}''';
+  - Display Name: ${profileState.profile!.attributes.displayName}
+  - Email: ${profileState.profile!.attributes.email}
+  
+Avatar URLs (Full):
+  - Thumbnail: ${profileState.profile!.attributes.avatarUrls?.thumbnail != null ? '${config.baseUrl}${profileState.profile!.attributes.avatarUrls!.thumbnail}' : 'None'}
+  - Small: ${profileState.profile!.attributes.avatarUrls?.small != null ? '${config.baseUrl}${profileState.profile!.attributes.avatarUrls!.small}' : 'None'}
+  - Medium: ${profileState.profile!.attributes.avatarUrls?.medium != null ? '${config.baseUrl}${profileState.profile!.attributes.avatarUrls!.medium}' : 'None'}
+  - Large: ${profileState.profile!.attributes.avatarUrls?.large != null ? '${config.baseUrl}${profileState.profile!.attributes.avatarUrls!.large}' : 'None'}
+  - Original: ${profileState.profile!.attributes.avatarUrls?.original != null ? '${config.baseUrl}${profileState.profile!.attributes.avatarUrls!.original}' : 'None'}''' : 'No profile data available'}''';
     });
   }
 

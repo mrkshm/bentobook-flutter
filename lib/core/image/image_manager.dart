@@ -2,6 +2,14 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
+import 'dart:developer' as dev;
+
+class ImagePaths {
+  final String thumbnailPath;
+  final String mediumPath;
+
+  ImagePaths({required this.thumbnailPath, required this.mediumPath});
+}
 
 class ImageManager {
   final Dio _dio;
@@ -63,86 +71,87 @@ class ImageManager {
   }
 
   Future<void> cleanupOldImages(int userId) async {
-    final directory = await getImageDirectory();
-    final dir = Directory(directory);
-    final files = dir.listSync();
+    final directory = await getApplicationDocumentsDirectory();
+    final baseDir = Directory('${directory.path}/profiles/$userId');
+    if (!await baseDir.exists()) return;
 
-    // Keep track of current profile images
-    final currentImages = <String>[];
+    for (var variant in ['thumbnail', 'medium']) {
+      final variantDir = Directory('${baseDir.path}/$variant');
+      if (!await variantDir.exists()) continue;
 
-    // Find current profile images
-    for (var file in files) {
-      if (file.path.contains('profile_${userId}_')) {
-        currentImages.add(file.path);
-      }
-    }
+      final files = variantDir.listSync();
+      if (files.length > 2) {
+        // Keep only the most recent file
+        files.sort((a, b) => File(b.path)
+            .lastModifiedSync()
+            .compareTo(File(a.path).lastModifiedSync()));
 
-    // Keep only the most recent versions
-    if (currentImages.length > 4) {
-      // Keep last 2 sets (thumbnail & medium)
-      currentImages.sort((a, b) =>
-          File(b).lastModifiedSync().compareTo(File(a).lastModifiedSync()));
-
-      // Delete older files
-      for (var i = 4; i < currentImages.length; i++) {
-        await File(currentImages[i]).delete();
+        // Delete older files
+        for (var i = 1; i < files.length; i++) {
+          await File(files[i].path).delete();
+        }
       }
     }
   }
 
   Future<void> deleteUserImages(int userId) async {
-    final directory = await getImageDirectory();
-    final dir = Directory(directory);
-    final files = dir.listSync();
-
-    for (var file in files) {
-      if (file.path.contains('profile_${userId}_')) {
-        await File(file.path).delete();
-      }
+    final directory = await getApplicationDocumentsDirectory();
+    final userDir = Directory('${directory.path}/profiles/$userId');
+    if (await userDir.exists()) {
+      await userDir.delete(recursive: true);
     }
   }
 
   Future<String?> getImagePath(int userId, {String variant = 'medium'}) async {
     final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/profiles/$userId/$variant.jpg';
+    final variantDir = Directory('${directory.path}/profiles/$userId/$variant');
+    if (!await variantDir.exists()) return null;
+
+    final files = variantDir.listSync();
+    if (files.isEmpty) return null;
+
+    // Get most recent file
+    files.sort((a, b) => File(b.path)
+        .lastModifiedSync()
+        .compareTo(File(a.path).lastModifiedSync()));
+    return files.first.path;
   }
 
-  Future<void> downloadAndSaveProfileImages({
+  Future<ImagePaths> downloadAndSaveProfileImages({
     required String userId,
     required String thumbnailUrl,
     required String mediumUrl,
   }) async {
     try {
-      // Quick fix: replace localhost with localhost:5100
-      // TODO: remove this once we have a proper backend
-      final fixedThumbnailUrl = thumbnailUrl.replaceFirst(
-          'http://localhost/', 'http://localhost:5100/');
-      final fixedMediumUrl =
-          mediumUrl.replaceFirst('http://localhost/', 'http://localhost:5100/');
+      dev.log('ImageManager: Starting image download');
 
       final directory = await getApplicationDocumentsDirectory();
-      final profileDir = Directory('${directory.path}/profiles/$userId');
-      await profileDir.create(recursive: true);
+      final baseDir = Directory('${directory.path}/profiles/$userId');
+      final thumbnailDir = Directory('${baseDir.path}/thumbnail');
+      final mediumDir = Directory('${baseDir.path}/medium');
 
-      await _retryWithBackoff(() async {
-        // Download thumbnail
-        final thumbnailResponse = await _dio.get(
-          fixedThumbnailUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        final thumbnailFile = File('${profileDir.path}/thumbnail.jpg');
-        await thumbnailFile.writeAsBytes(thumbnailResponse.data);
+      // Create directories if they don't exist
+      await thumbnailDir.create(recursive: true);
+      await mediumDir.create(recursive: true);
 
-        // Download medium
-        final mediumResponse = await _dio.get(
-          fixedMediumUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        final mediumFile = File('${profileDir.path}/medium.jpg');
-        await mediumFile.writeAsBytes(mediumResponse.data);
-      });
+      // Extract filenames from URLs
+      final thumbnailFilename = thumbnailUrl.split('/').last;
+      final mediumFilename = mediumUrl.split('/').last;
+
+      final thumbnailPath = '${thumbnailDir.path}/$thumbnailFilename';
+      final mediumPath = '${mediumDir.path}/$mediumFilename';
+
+      // Download and save files
+      await _downloadFile(thumbnailUrl, thumbnailPath);
+      await _downloadFile(mediumUrl, mediumPath);
+
+      return ImagePaths(
+        thumbnailPath: thumbnailPath,
+        mediumPath: mediumPath,
+      );
     } catch (e) {
-      throw ImageDownloadException('Failed to download profile images: $e');
+      dev.log('ImageManager: Error downloading images', error: e);
+      rethrow;
     }
   }
 
@@ -156,6 +165,39 @@ class ImageManager {
       }
     }
     throw Exception('Retry failed after $_maxRetries attempts');
+  }
+
+  Future<void> cleanupTemporaryFiles(int userId) async {
+    final directory = await getTemporaryDirectory();
+    final dir = Directory(directory.path);
+    final files = dir.listSync();
+
+    for (var file in files) {
+      if (file.path.contains('avatar_temp_$userId')) {
+        try {
+          await File(file.path).delete();
+        } catch (e) {
+          dev.log('Failed to delete temporary file: ${file.path}', error: e);
+        }
+      }
+    }
+  }
+
+  Future<String> generateTempFileName(int userId, String prefix) async {
+    final directory = await getTemporaryDirectory();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${prefix}_${userId}_$timestamp.jpg';
+    return '${directory.path}/$fileName';
+  }
+
+  Future<void> _downloadFile(String url, String filePath) async {
+    final response = await _dio.get(
+      url,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final file = File(filePath);
+    await file.writeAsBytes(response.data);
+    dev.log('ImageManager: Saved file to: $filePath');
   }
 }
 

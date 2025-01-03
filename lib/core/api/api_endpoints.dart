@@ -6,8 +6,10 @@ class ApiEndpoints {
   static const String logout = '/session';
   static const String logoutAll = '/sessions';
 
-  // User
+  // Profile
   static const String profile = '/profile';
   static const String updateProfile = '/profile';
+  static const String updateAvatar = '/profile/avatar';
+  static const String deleteAvatar = '/profile/avatar';
   static const String verifyUsername = '/usernames/verify';
 }

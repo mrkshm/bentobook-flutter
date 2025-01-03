@@ -51,6 +51,8 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.27
   page_transition: ^2.1.0
   path_provider: ^2.1.5
+  image_cropper: ^8.1.0
+  flutter_image_compress: ^2.3.0
 
 dev_dependencies:
   flutter_test:

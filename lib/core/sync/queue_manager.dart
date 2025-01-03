@@ -78,17 +78,19 @@ class QueueManager {
       return;
     }
 
-    await db.into(db.operationQueue).insert(
-          OperationQueueCompanion.insert(
-            operationType: type,
-            payload: json.encode(payload),
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            localTimestamp: DateTime.now(),
-            status: OperationStatus.pending,
-            retryCount: const Value(0),
-          ),
-        );
+    await _retryWithBackoff(() async {
+      await db.into(db.operationQueue).insert(
+            OperationQueueCompanion.insert(
+              operationType: type,
+              payload: json.encode(payload),
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              localTimestamp: DateTime.now(),
+              status: OperationStatus.pending,
+              retryCount: const Value(0),
+            ),
+          );
+    });
 
     final isOnline = await _isOnline();
     if (isOnline) {
@@ -172,7 +174,7 @@ class QueueManager {
       case OperationType.themeUpdate:
         try {
           // Get current server state
-          final response = await api.getProfile(userId!);
+          final response = await api.profileApi.getProfile(userId!);
           if (response.data == null) {
             throw Exception('Server returned no data');
           }
@@ -189,7 +191,7 @@ class QueueManager {
 
           // Process local change
           final payload = json.decode(op.payload);
-          await api.updateProfile(
+          await api.profileApi.updateProfile(
             userId: userId!,
             preferredTheme: payload['theme'],
           );
@@ -218,7 +220,7 @@ class QueueManager {
         throw QueueException('No payload for profile update operation');
       }
 
-      await api.updateProfile(
+      await api.profileApi.updateProfile(
         userId: userId!,
         firstName: payload['firstName'],
         lastName: payload['lastName'],

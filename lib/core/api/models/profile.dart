@@ -22,7 +22,7 @@ class Profile with _$Profile {
 @freezed
 class ProfileAttributes with _$ProfileAttributes {
   const factory ProfileAttributes({
-    required String username,
+    String? username,
     @JsonKey(name: 'first_name') String? firstName,
     @JsonKey(name: 'last_name') String? lastName,
     String? about,
