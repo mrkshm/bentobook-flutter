@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 enum Environment {
   dev,
@@ -45,6 +46,8 @@ class EnvConfig {
 }
 
 final envConfigProvider = Provider<EnvConfig>((ref) {
-  // Default to development
+  if (kReleaseMode) {
+    return EnvConfig.production();
+  }
   return EnvConfig.development();
 });

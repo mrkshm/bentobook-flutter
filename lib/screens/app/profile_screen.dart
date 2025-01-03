@@ -1,4 +1,5 @@
 import 'package:bentobook/core/profile/profile_provider.dart';
+import 'package:bentobook/screens/app/dashboard_screen.dart';
 import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:bentobook/screens/app/widgets/avatar_picker_sheet.dart';
 import 'package:bentobook/screens/app/widgets/profile_avatar.dart';
+import 'package:page_transition/page_transition.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -48,7 +50,13 @@ class ProfileScreen extends ConsumerWidget {
         backgroundColor: theme.colorScheme.surface,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/app/dashboard'),
+          onPressed: () {
+            context.go('/app/dashboard');
+            PageTransition(
+              type: PageTransitionType.leftToRight,
+              child: const DashboardScreen(),
+            );
+          },
         ),
       ),
       body: SafeArea(

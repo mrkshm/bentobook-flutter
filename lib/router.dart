@@ -15,9 +15,10 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authServiceProvider);
   String? previousLocation;
-  
-  Page<void> buildTransitionPage(BuildContext context, GoRouterState state, Widget child) {
-    final isBack = previousLocation != null && 
+
+  Page<void> buildTransitionPage(
+      BuildContext context, GoRouterState state, Widget child) {
+    final isBack = previousLocation != null &&
         previousLocation!.length > state.matchedLocation.length;
     previousLocation = state.matchedLocation;
 
@@ -28,9 +29,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       reverseTransitionDuration: const Duration(milliseconds: 300),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return PageTransition(
-          type: isBack 
-            ? PageTransitionType.leftToRight 
-            : PageTransitionType.rightToLeft,
+          type: isBack
+              ? PageTransitionType.leftToRight
+              : PageTransitionType.rightToLeft,
           duration: const Duration(milliseconds: 300),
           reverseDuration: const Duration(milliseconds: 300),
           child: child,
@@ -67,13 +68,15 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Always redirect authenticated users to dashboard if they're in public area
       if (isAuthenticated && state.matchedLocation.startsWith('/public')) {
-        dev.log('Router: Authenticated user in public area - redirecting to dashboard');
+        dev.log(
+            'Router: Authenticated user in public area - redirecting to dashboard');
         return '/app/dashboard';
       }
 
       // Redirect unauthenticated users to landing if they try to access app area
       if (!isAuthenticated && state.matchedLocation.startsWith('/app')) {
-        dev.log('Router: Unauthenticated user in app area - redirecting to landing');
+        dev.log(
+            'Router: Unauthenticated user in app area - redirecting to landing');
         return '/public/landing';
       }
 
@@ -91,7 +94,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/public/auth',
-        builder: (context, state) => const AuthScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const AuthScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return PageTransition(
+              type: PageTransitionType.leftToRight,
+              child: child,
+            ).buildTransitions(context, animation, secondaryAnimation, child);
+          },
+        ),
       ),
       GoRoute(
         path: '/public/loading',
