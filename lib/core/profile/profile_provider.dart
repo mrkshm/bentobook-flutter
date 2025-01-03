@@ -70,23 +70,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       // Download profile images if available
       if (serverProfile.attributes.avatarUrls?.thumbnail != null) {
         try {
-          await _imageManager.downloadAndSaveProfileImages(
-            userId: userId.toString(),
-            thumbnailUrl:
-                '${_ref.read(envConfigProvider).baseUrl}${serverProfile.attributes.avatarUrls!.thumbnail}',
-            mediumUrl:
-                '${_ref.read(envConfigProvider).baseUrl}${serverProfile.attributes.avatarUrls!.medium}',
-          );
-
-          final thumbnailPath =
-              await _imageManager.getImagePath(userId, variant: 'thumbnail');
-          final mediumPath =
-              await _imageManager.getImagePath(userId, variant: 'medium');
-
-          serverProfile = serverProfile.copyWith(
-            localThumbnailPath: thumbnailPath,
-            localMediumPath: mediumPath,
-          );
+          serverProfile = await _repository.syncProfileImages(serverProfile);
         } catch (e) {
           dev.log('ProfileNotifier: Error downloading profile images',
               error: e);
@@ -185,44 +169,15 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       String newFilename = '${nameWithoutExt}_${userId}_$timestamp$extension';
 
-      // Upload with new filename
+      // Use repository to handle the upload and sync
       var updatedProfile = await _repository.uploadAvatar(userId, imageFile,
           filename: newFilename);
 
-      // Clear local paths to force refresh
       state = state.copyWith(
-        profile: updatedProfile.copyWith(
-            localThumbnailPath: null, localMediumPath: null),
-        isUploadingImage: true,
+        profile: updatedProfile,
+        isUploadingImage: false,
+        lastUpdated: DateTime.now().millisecondsSinceEpoch,
       );
-
-      if (updatedProfile.attributes.avatarUrls?.thumbnail != null) {
-        await _imageManager.downloadAndSaveProfileImages(
-          userId: userId.toString(),
-          thumbnailUrl:
-              '${_ref.read(envConfigProvider).baseUrl}${updatedProfile.attributes.avatarUrls!.thumbnail}',
-          mediumUrl:
-              '${_ref.read(envConfigProvider).baseUrl}${updatedProfile.attributes.avatarUrls!.medium}',
-        );
-
-        final thumbnailPath =
-            await _imageManager.getImagePath(userId, variant: 'thumbnail');
-        final mediumPath =
-            await _imageManager.getImagePath(userId, variant: 'medium');
-
-        if (thumbnailPath != null &&
-            mediumPath != null &&
-            await File(thumbnailPath).exists()) {
-          state = state.copyWith(
-            profile: updatedProfile.copyWith(
-              localThumbnailPath: thumbnailPath,
-              localMediumPath: mediumPath,
-            ),
-            isUploadingImage: false,
-            lastUpdated: DateTime.now().millisecondsSinceEpoch,
-          );
-        }
-      }
     } catch (e) {
       state = state.copyWith(isUploadingImage: false, error: e.toString());
       rethrow;

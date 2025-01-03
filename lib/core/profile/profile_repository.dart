@@ -11,6 +11,7 @@ import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:bentobook/core/config/env_config.dart';
+import 'package:drift/drift.dart';
 
 class ProfileRepository {
   final ApiClient _apiClient;
@@ -32,7 +33,8 @@ class ProfileRepository {
         _config = config,
         _imageManager = imageManager ?? ImageManager(dio: Dio());
 
-  api.Profile _convertToApiProfile(Profile dbProfile) {
+  api.Profile _convertToApiProfile(Profile dbProfile,
+      {api.AvatarUrls? serverUrls}) {
     return api.Profile(
       id: dbProfile.userId.toString(),
       type: 'profile',
@@ -48,8 +50,10 @@ class ProfileRepository {
         createdAt: dbProfile.createdAt,
         updatedAt: dbProfile.updatedAt,
         email: '', // Email handled by auth
-        avatarUrls: null,
+        avatarUrls: serverUrls,
       ),
+      localThumbnailPath: dbProfile.thumbnailPath,
+      localMediumPath: dbProfile.mediumPath,
     );
   }
 
@@ -199,46 +203,73 @@ class ProfileRepository {
     }
   }
 
-  Future<api.Profile> syncProfileImages(api.Profile profile) async {
-    dev.log('ProfileRepository: Starting syncProfileImages');
-    dev.log('ProfileRepository: Profile before sync: ${profile.toJson()}');
+  String? _extractTimestamp(String? path) {
+    if (path == null) return null;
 
+    // Match any timestamp pattern in the path
+    final timestampRegex = RegExp(r'_(\d+)\.(jpg|webp|png)$');
+    final match = timestampRegex.firstMatch(path);
+
+    dev.log('ProfileRepository: Extracting timestamp from path:');
+    dev.log('  Input path: $path');
+    dev.log('  Extracted timestamp: ${match?.group(1)}');
+
+    return match?.group(1);
+  }
+
+  Future<api.Profile> syncProfileImages(api.Profile profile,
+      {bool forceSync = false}) async {
     try {
-      if (profile.attributes.avatarUrls != null) {
-        final userId = int.parse(profile.id);
+      dev.log('ProfileRepository: Starting syncProfileImages');
 
-        // Add cache busting parameter to URLs
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final thumbnailUrl =
-            '${_config.baseUrl}${profile.attributes.avatarUrls!.thumbnail}?t=$timestamp';
-        final mediumUrl =
-            '${_config.baseUrl}${profile.attributes.avatarUrls!.medium}?t=$timestamp';
-
-        // Download new images
-        await _imageManager.downloadAndSaveProfileImages(
-          userId: userId.toString(),
-          thumbnailUrl: thumbnailUrl,
-          mediumUrl: mediumUrl,
-        );
-
-        // Get local paths
-        final thumbnailPath =
-            await _imageManager.getImagePath(userId, variant: 'thumbnail');
-        final mediumPath =
-            await _imageManager.getImagePath(userId, variant: 'medium');
-
-        dev.log(
-            'ProfileRepository: Downloaded images - thumbnail: $thumbnailPath, medium: $mediumPath');
-
-        // Update profile with local paths and timestamp
-        profile = profile.copyWith(
-          localThumbnailPath: '$thumbnailPath?t=$timestamp',
-          localMediumPath: '$mediumPath?t=$timestamp',
-        );
-
-        dev.log('ProfileRepository: Profile after sync: ${profile.toJson()}');
+      if (profile.attributes.avatarUrls == null) {
+        return profile;
       }
-      return profile;
+
+      final userId = int.parse(profile.id);
+      final dbProfile = await _db.getProfile(userId);
+
+      // Check if files already exist and match
+      if (!forceSync && dbProfile?.thumbnailPath != null) {
+        final serverFilename =
+            profile.attributes.avatarUrls!.thumbnail!.split('/').last;
+        final localFilename = dbProfile!.thumbnailPath!.split('/').last;
+
+        if (serverFilename == localFilename) {
+          dev.log(
+              'ProfileRepository: Files already synced, returning existing profile');
+          return profile.copyWith(
+            localThumbnailPath: dbProfile.thumbnailPath,
+            localMediumPath: dbProfile.mediumPath,
+          );
+        }
+      }
+
+      // Continue with download only if files don't match
+      dev.log('ProfileRepository: ACTUALLY STARTING DOWNLOAD');
+      final newPaths = await _imageManager.downloadAndSaveProfileImages(
+        userId: userId.toString(),
+        thumbnailUrl:
+            '${_config.baseUrl}${profile.attributes.avatarUrls!.thumbnail}',
+        mediumUrl: '${_config.baseUrl}${profile.attributes.avatarUrls!.medium}',
+      );
+
+      // Update database with new paths immediately
+      if (dbProfile != null) {
+        await _db.updateProfile(
+          dbProfile.copyWith(
+            thumbnailPath: Value(newPaths.thumbnailPath),
+            mediumPath: Value(newPaths.mediumPath),
+            imageUpdatedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+
+      // Return profile with new paths
+      return profile.copyWith(
+        localThumbnailPath: newPaths.thumbnailPath,
+        localMediumPath: newPaths.mediumPath,
+      );
     } catch (e) {
       dev.log('ProfileRepository: Error in syncProfileImages', error: e);
       rethrow;
@@ -306,9 +337,8 @@ class ProfileRepository {
 
   Future<api.Profile> uploadAvatar(int userId, File imageFile,
       {String? filename}) async {
-    // Use the provided filename or generate a default one
-    final actualFilename = filename ??
-        'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    // Use the provided filename or generate a default one without timestamp
+    final actualFilename = filename ?? 'profile_$userId.jpg';
     try {
       // Upload to API and get response with processed image URLs
       final response = await _apiClient.profileApi
