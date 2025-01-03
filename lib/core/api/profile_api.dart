@@ -4,7 +4,6 @@ import 'package:bentobook/core/api/models/api_response.dart';
 import 'package:bentobook/core/api/api_exception.dart';
 import 'package:bentobook/core/api/api_endpoints.dart';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 import 'dart:developer' as dev;
 
 class ProfileApi {
@@ -66,31 +65,31 @@ class ProfileApi {
     }
   }
 
-  Future<ApiResponse<Profile>> uploadAvatar(
-      String userId, File imageFile) async {
+  Future<ApiResponse<Profile>> uploadAvatar(String userId, File imageFile,
+      {String? filename}) async {
     try {
       final formData = FormData.fromMap({
-        'profile[avatar]': await MultipartFile.fromFile(
-          imageFile.path,
-          filename: path.basename(imageFile.path),
-        ),
+        'profile[avatar]': await MultipartFile.fromFile(imageFile.path),
       });
 
-      final response = await _dio.post(
-        '${ApiEndpoints.profile}/$userId/avatar',
+      final response = await _dio.patch(
+        ApiEndpoints.updateAvatar,
         data: formData,
         onSendProgress: (sent, total) {
-          final progress = (sent / total) * 100;
-          dev.log('Upload progress: ${progress.toStringAsFixed(2)}%');
+          if (total != -1) {
+            final progress = (sent / total * 100).toStringAsFixed(2);
+            dev.log('Upload progress: $progress%');
+          }
         },
       );
 
       return ApiResponse<Profile>.fromJson(
-        response.data as Map<String, dynamic>,
+        response.data,
         (json) => Profile.fromJson(json as Map<String, dynamic>),
       );
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
+    } catch (e) {
+      dev.log('Failed to upload avatar', error: e);
+      rethrow;
     }
   }
 

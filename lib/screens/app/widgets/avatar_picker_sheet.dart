@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/screens/app/widgets/image_preview_sheet.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +69,6 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet> {
       _error = null;
 
       final imageManager = ref.read(imageManagerProvider);
-      final profileRepository = ref.read(profileRepositoryProvider);
 
       // Pick image
       final picker = ImagePicker();
@@ -100,7 +100,7 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet> {
 
       // Generate a temporary file name
       final tempPath =
-          imageManager.generateTempFileName(widget.userId, 'avatar_temp');
+          await imageManager.generateTempFileName(widget.userId, 'avatar_temp');
 
       // Compress and save to temp location
       final compressedFile = await FlutterImageCompress.compressAndGetFile(
@@ -129,8 +129,9 @@ class _AvatarPickerSheetState extends ConsumerState<AvatarPickerSheet> {
       if (confirmed == true && mounted) {
         try {
           // Upload the image
-          await profileRepository.uploadAvatar(
-              widget.userId, File(compressedFile.path));
+          await ref
+              .read(profileProvider.notifier)
+              .updateAvatar(widget.userId, File(compressedFile.path));
           if (mounted) {
             Navigator.pop(context);
           }

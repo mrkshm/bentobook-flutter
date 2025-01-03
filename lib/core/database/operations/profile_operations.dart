@@ -44,9 +44,13 @@ extension ProfileOperations on AppDatabase {
   }
 
   Stream<Profile?> watchProfile(int userId) {
-    dev.log('Database: Watching profile for user: $userId');
+    dev.log('Database: Starting watchProfile stream for user $userId');
     return (select(profiles)..where((p) => p.userId.equals(userId)))
-        .watchSingleOrNull();
+        .watchSingle()
+        .map((profile) {
+      dev.log('Database: Profile from DB: $profile');
+      return profile;
+    });
   }
 
   Future<void> deleteProfile(int userId) async {
@@ -96,5 +100,11 @@ extension ProfileOperations on AppDatabase {
         imageUpdatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  Future<void> updateProfile(Profile profile) async {
+    dev.log('Database: Updating profile: ${profile.toJson()}');
+    await into(profiles).insertOnConflictUpdate(profile);
+    dev.log('Database: Profile updated successfully');
   }
 }

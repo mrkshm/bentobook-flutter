@@ -168,9 +168,11 @@ class ImageManager {
     }
   }
 
-  String generateTempFileName(int userId, String prefix) {
+  Future<String> generateTempFileName(int userId, String prefix) async {
+    final directory = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    return '${prefix}_${userId}_$timestamp.jpg';
+    final fileName = '${prefix}_${userId}_$timestamp.jpg';
+    return '${directory.path}/$fileName';
   }
 }
 

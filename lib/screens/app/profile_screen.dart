@@ -10,6 +10,7 @@ import 'package:bentobook/core/shared/providers.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:bentobook/screens/app/widgets/avatar_picker_sheet.dart';
+import 'package:bentobook/screens/app/widgets/profile_avatar.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -150,21 +151,10 @@ class ProfileScreen extends ConsumerWidget {
                         child: Center(
                           child: Stack(
                             children: [
-                              CircleAvatar(
-                                radius: 50,
+                              ProfileAvatar(
+                                imagePath: profile.localThumbnailPath,
                                 backgroundColor:
-                                    theme.colorScheme.surfaceVariant,
-                                backgroundImage:
-                                    profile.localThumbnailPath != null
-                                        ? FileImage(
-                                            File(profile.localThumbnailPath!))
-                                        : null,
-                                child: profile.localThumbnailPath == null
-                                    ? Icon(Icons.person_outline,
-                                        size: 50,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant)
-                                    : null,
+                                    theme.colorScheme.surfaceContainerHighest,
                               ),
                               Positioned(
                                 right: 0,
@@ -175,18 +165,28 @@ class ProfileScreen extends ConsumerWidget {
                                     AvatarPickerSheet.show(
                                       context,
                                       int.parse(userId),
-                                      (String imagePath) {
-                                        dev.log(
-                                            'TODO: Update profile image with path: $imagePath');
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Image upload coming soon!')),
-                                        );
+                                      (String imagePath) async {
+                                        try {
+                                          await ref
+                                              .read(profileProvider.notifier)
+                                              .updateAvatar(
+                                                int.parse(userId),
+                                                File(imagePath),
+                                              );
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                  content: Text(
+                                                      'Failed to update avatar: $e')),
+                                            );
+                                          }
+                                        }
                                       },
-                                      () {
-                                        dev.log('TODO: Delete avatar');
+                                      () async {
+                                        // Handle delete avatar
+                                        // TODO: Implement avatar deletion
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(

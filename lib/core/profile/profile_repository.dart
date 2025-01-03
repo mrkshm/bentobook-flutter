@@ -169,14 +169,19 @@ class ProfileRepository {
     );
   }
 
-  Stream<api.Profile?> watchProfile(int userId) async* {
-    await for (final dbProfile in _db.watchProfile(userId)) {
+  Stream<api.Profile?> watchProfile(int userId) {
+    dev.log('ProfileRepository: Starting watchProfile for user $userId');
+    return _db.watchProfile(userId).map((dbProfile) {
+      dev.log('ProfileRepository: DB Profile update received: $dbProfile');
       if (dbProfile == null) {
-        yield null;
-      } else {
-        yield _convertToApiProfile(dbProfile);
+        dev.log('ProfileRepository: DB returned null profile');
+        return null;
       }
-    }
+      final apiProfile = _convertToApiProfile(dbProfile);
+      dev.log(
+          'ProfileRepository: Converted to API profile: ${apiProfile.toJson()}');
+      return apiProfile;
+    });
   }
 
   Future<bool> checkUsernameAvailability(String username) async {
@@ -195,48 +200,49 @@ class ProfileRepository {
   }
 
   Future<api.Profile> syncProfileImages(api.Profile profile) async {
-    // Delete old images first
-    final oldProfile = await _db.getProfile(int.parse(profile.id));
-    if (oldProfile != null) {
-      if (oldProfile.mediumPath != null) {
-        await _imageManager.deleteImage(oldProfile.mediumPath!);
+    dev.log('ProfileRepository: Starting syncProfileImages');
+    dev.log('ProfileRepository: Profile before sync: ${profile.toJson()}');
+
+    try {
+      if (profile.attributes.avatarUrls != null) {
+        final userId = int.parse(profile.id);
+
+        // Add cache busting parameter to URLs
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final thumbnailUrl =
+            '${_config.baseUrl}${profile.attributes.avatarUrls!.thumbnail}?t=$timestamp';
+        final mediumUrl =
+            '${_config.baseUrl}${profile.attributes.avatarUrls!.medium}?t=$timestamp';
+
+        // Download new images
+        await _imageManager.downloadAndSaveProfileImages(
+          userId: userId.toString(),
+          thumbnailUrl: thumbnailUrl,
+          mediumUrl: mediumUrl,
+        );
+
+        // Get local paths
+        final thumbnailPath =
+            await _imageManager.getImagePath(userId, variant: 'thumbnail');
+        final mediumPath =
+            await _imageManager.getImagePath(userId, variant: 'medium');
+
+        dev.log(
+            'ProfileRepository: Downloaded images - thumbnail: $thumbnailPath, medium: $mediumPath');
+
+        // Update profile with local paths and timestamp
+        profile = profile.copyWith(
+          localThumbnailPath: '$thumbnailPath?t=$timestamp',
+          localMediumPath: '$mediumPath?t=$timestamp',
+        );
+
+        dev.log('ProfileRepository: Profile after sync: ${profile.toJson()}');
       }
-      if (oldProfile.thumbnailPath != null) {
-        await _imageManager.deleteImage(oldProfile.thumbnailPath!);
-      }
+      return profile;
+    } catch (e) {
+      dev.log('ProfileRepository: Error in syncProfileImages', error: e);
+      rethrow;
     }
-
-    // Download and save new images
-    if (profile.attributes.avatarUrls != null) {
-      final avatarUrls = profile.attributes.avatarUrls!;
-
-      if (avatarUrls.medium != null) {
-        final mediumUrl = '${_config.baseUrl}${avatarUrls.medium!}';
-        final mediumPath = await _imageManager.downloadImage(
-          mediumUrl,
-          _imageManager.generateImageFileName(int.parse(profile.id), 'medium'),
-        );
-        await _db.updateProfileImage(
-          userId: int.parse(profile.id),
-          mediumPath: mediumPath,
-        );
-      }
-
-      if (avatarUrls.thumbnail != null) {
-        final thumbnailUrl = '${_config.baseUrl}${avatarUrls.thumbnail!}';
-        final thumbnailPath = await _imageManager.downloadImage(
-          thumbnailUrl,
-          _imageManager.generateImageFileName(
-              int.parse(profile.id), 'thumbnail'),
-        );
-        await _db.updateProfileImage(
-          userId: int.parse(profile.id),
-          thumbnailPath: thumbnailPath,
-        );
-      }
-    }
-
-    return profile;
   }
 
   Future<String?> getProfileImagePath(int userId,
@@ -253,10 +259,13 @@ class ProfileRepository {
 
       // 2. Once upload succeeds, enqueue sync operation for downloading variants
       if (response.data?.attributes.avatarUrls != null) {
+        // Clean up old images before syncing new ones
+        await _imageManager.cleanupOldImages(userId);
+
         await syncProfileImages(response.data!);
 
-        // 3. Clean up old images
-        await _imageManager.cleanupOldImages(userId);
+        // 3. Force a profile refresh to update the UI
+        await getProfile(userId);
       }
     } catch (e) {
       dev.log('Failed to update profile image', error: e);
@@ -295,15 +304,18 @@ class ProfileRepository {
     throw Exception('Server returned no profile data');
   }
 
-  Future<api.Profile> uploadAvatar(int userId, File imageFile) async {
+  Future<api.Profile> uploadAvatar(int userId, File imageFile,
+      {String? filename}) async {
+    // Use the provided filename or generate a default one
+    final actualFilename = filename ??
+        'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
       // Upload to API and get response with processed image URLs
       final response = await _apiClient.profileApi
-          .uploadAvatar(userId.toString(), imageFile);
+          .uploadAvatar(userId.toString(), imageFile, filename: actualFilename);
 
       if (response.data != null) {
         // Use syncProfileImages to handle the API response
-        // This will download the processed images from the API
         return await syncProfileImages(response.data!);
       }
       throw ApiException(message: 'Failed to upload avatar');
