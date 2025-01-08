@@ -28,6 +28,8 @@ class EnvConfig {
       environment: Environment.dev,
       apiBaseUrl: 'http://localhost:5100/api/v1',
       baseUrl: 'http://localhost:5100',
+      // apiBaseUrl: 'https://bentobook.app/api/v1',
+      // baseUrl: 'https://bentobook.app',
       enableLogging: true,
     );
   }

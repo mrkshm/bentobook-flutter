@@ -1,6 +1,7 @@
 import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:bentobook/screens/app/dashboard_screen.dart';
 import 'package:bentobook/screens/app/widgets/profile_edit_sheet.dart';
+import 'package:bentobook/screens/app/widgets/language_selector_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,22 +9,39 @@ import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
 import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/shared/providers.dart';
+import 'package:bentobook/core/l10n/locale_provider.dart';
 import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:bentobook/screens/app/widgets/avatar_picker_sheet.dart';
 import 'package:bentobook/screens/app/widgets/profile_avatar.dart';
 import 'package:page_transition/page_transition.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
+  String _getLanguageName(String languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return 'English';
+      case 'ja':
+        return '日本語';
+      case 'fr':
+        return 'Français';
+      default:
+        return languageCode;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final canEdit = ref.watch(canEditAvatarProvider);
     final theme = Theme.of(context);
     final colorScheme = ref.watch(colorSchemeProvider);
     final authState = ref.watch(authServiceProvider);
     final profileState = ref.watch(profileProvider);
+    final profileWithEmailAsync = ref.watch(profileWithEmailProvider);
     final currentTheme = ref.watch(themeProvider);
     final userId = authState.maybeMap(
       authenticated: (state) => state.userId,
@@ -45,7 +63,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(l10n.profileTitle),
         centerTitle: true,
         backgroundColor: theme.colorScheme.surface,
         leading: IconButton(
@@ -81,14 +99,14 @@ class ProfileScreen extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Text(
-                          'Appearance',
+                          l10n.appearance,
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.primary,
                           ),
                         ),
                       ),
                       ListTile(
-                        title: const Text('Theme Mode'),
+                        title: Text(l10n.themeMode),
                         trailing: SegmentedButton<ThemeMode>(
                           segments: const [
                             ButtonSegment(
@@ -113,7 +131,7 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                       ListTile(
-                        title: const Text('Color Scheme'),
+                        title: Text(l10n.colorScheme),
                         trailing: PopupMenuButton<String>(
                           icon: Icon(Icons.palette_outlined,
                               color: theme.colorScheme.primary),
@@ -218,7 +236,7 @@ class ProfileScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Personal Information',
+                              l10n.personalInformation,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 color: theme.colorScheme.primary,
                               ),
@@ -234,31 +252,40 @@ class ProfileScreen extends ConsumerWidget {
                                       const ProfileEditSheet(),
                                 );
                               },
-                              tooltip: 'Edit Profile',
+                              tooltip: l10n.edit,
                             ),
                           ],
                         ),
                       ),
                       ListTile(
-                        title: const Text('Username'),
+                        title: Text(l10n.username),
                         subtitle:
-                            Text(profile.attributes.username ?? 'Not set'),
+                            Text(profile.attributes.username ?? l10n.notSet),
                       ),
                       ListTile(
-                        title: const Text('First Name'),
+                        title: Text(l10n.firstName),
                         subtitle:
-                            Text(profile.attributes.firstName ?? 'Not set'),
+                            Text(profile.attributes.firstName ?? l10n.notSet),
                       ),
                       ListTile(
-                        title: const Text('Last Name'),
+                        title: Text(l10n.lastName),
                         subtitle:
-                            Text(profile.attributes.lastName ?? 'Not set'),
+                            Text(profile.attributes.lastName ?? l10n.notSet),
                       ),
                       ListTile(
-                        title: const Text('Email'),
-                        subtitle: Text(profile.attributes.email.isNotEmpty
-                            ? profile.attributes.email
-                            : 'Not set'),
+                        title: Text(l10n.email),
+                        subtitle: profileWithEmailAsync.when(
+                          data: (profileWithEmail) => Text(
+                            profileWithEmail?.attributes.email.isNotEmpty ==
+                                    true
+                                ? profileWithEmail!.attributes.email
+                                : l10n.notSet,
+                          ),
+                          loading: () => Text(l10n.loading),
+                          error: (_, __) => Text(
+                            l10n.errorLoading(l10n.email.toLowerCase()),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -283,7 +310,7 @@ class ProfileScreen extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Text(
-                            'About',
+                            l10n.about,
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: theme.colorScheme.primary,
                             ),
@@ -318,43 +345,30 @@ class ProfileScreen extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Text(
-                          'Preferences',
+                          l10n.preferences,
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.primary,
                           ),
                         ),
                       ),
-                      if (profile.attributes.preferredLanguage != null)
-                        ListTile(
-                          title: const Text('Language'),
-                          subtitle: Text(profile.attributes.preferredLanguage!),
-                        ),
+                      ListTile(
+                        title: Text(l10n.language),
+                        subtitle: Text(_getLanguageName(
+                            ref.watch(localeProvider).languageCode)),
+                        trailing: const Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            useRootNavigator: true,
+                            builder: (context) => const LanguageSelectorSheet(),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
               ),
-
-              // Test Button
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      final repository = ref.read(profileRepositoryProvider);
-                      await repository.updateProfileFromString(
-                        userId: userId,
-                        firstName: 'John',
-                        lastName: 'Doe',
-                      );
-                      dev.log('Profile updated successfully');
-                    } catch (e) {
-                      dev.log('Error updating profile', error: e);
-                    }
-                  },
-                  child: const Text('Update Profile Test'),
-                ),
-              ),
-              const SizedBox(height: 16),
 
               // Logout Card
               Padding(
@@ -369,7 +383,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   child: ListTile(
                     title: Text(
-                      'Logout',
+                      l10n.logout,
                       style: TextStyle(color: theme.colorScheme.error),
                     ),
                     leading: Icon(Icons.logout, color: theme.colorScheme.error),
@@ -377,17 +391,16 @@ class ProfileScreen extends ConsumerWidget {
                       final confirmed = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content:
-                              const Text('Are you sure you want to logout?'),
+                          title: Text(l10n.logout),
+                          content: Text(l10n.logoutConfirmation),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
+                              child: Text(l10n.cancel),
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Logout'),
+                              child: Text(l10n.logout),
                             ),
                           ],
                         ),

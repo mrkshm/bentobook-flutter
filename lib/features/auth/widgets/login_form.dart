@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
 import 'package:bentobook/features/auth/validators.dart';
 import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart' as foundation;
 
 class LoginForm extends ConsumerStatefulWidget {
   const LoginForm({super.key});
@@ -27,10 +28,25 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   }
 
   Future<void> _handleSubmit() async {
-    dev.log('===== LOGIN START =====', name: 'auth.form');
+    // Method 1: print
+    print('DEBUG_TEST_1: Basic print statement');
+
+    // Method 2: debugPrint
+    foundation.debugPrint('DEBUG_TEST_2: Using debugPrint');
+
+    // Method 3: developer.log
+    dev.log('DEBUG_TEST_3: Using developer.log', name: 'auth.form');
+
+    // Method 4: Flutter's logging
+    const String message = 'DEBUG_TEST_4: Flutter logging';
+    foundation.FlutterError.reportError(
+      foundation.FlutterErrorDetails(
+        exception: message,
+        library: 'auth.form',
+      ),
+    );
 
     if (!_formKey.currentState!.validate()) {
-      dev.log('Form validation failed', name: 'auth.form');
       return;
     }
 
@@ -135,7 +151,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
               onPressed: _isLoading
                   ? null
                   : () {
-                      dev.log('Login button pressed');
+                      print('DEBUG_TEST_5: Button pressed');
                       _handleSubmit();
                     },
               child: _isLoading

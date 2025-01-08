@@ -4,6 +4,9 @@ import 'package:bentobook/router.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/theme/theme.dart';
 import 'package:bentobook/core/theme/theme_provider.dart';
+import 'package:bentobook/core/l10n/locale_provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 void main() {
   runApp(
@@ -33,6 +36,8 @@ class _BentoBookAppState extends ConsumerState<BentoBookApp> {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeProvider);
     final colorScheme = ref.watch(colorSchemeProvider);
+    final locale = ref.watch(localeProvider);
+    final supportedLocales = ref.watch(supportedLocalesProvider);
 
     return MaterialApp.router(
       title: 'BentoBook',
@@ -40,6 +45,14 @@ class _BentoBookAppState extends ConsumerState<BentoBookApp> {
       darkTheme: AppTheme.dark(scheme: colorScheme),
       themeMode: themeMode,
       routerConfig: router,
+      locale: locale,
+      supportedLocales: supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
 }
@@ -87,7 +100,7 @@ class _MyHomePageState extends State<MyHomePage> {
         onPressed: _incrementCounter,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
-      ), 
+      ),
     );
   }
 }

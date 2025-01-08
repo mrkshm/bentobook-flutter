@@ -1,0 +1,93 @@
+{
+    "@@locale": "en",
+    "appTitle": "BentoBook",
+    "@appTitle": {
+        "description": "The title of the application"
+    },
+    "profileTitle": "Profile",
+    "@profileTitle": {
+        "description": "Title for the profile screen"
+    },
+    "appearance": "Appearance",
+    "@appearance": {
+        "description": "Title for appearance settings"
+    },
+    "themeMode": "Theme Mode",
+    "@themeMode": {
+        "description": "Label for theme mode selection"
+    },
+    "colorScheme": "Color Scheme",
+    "@colorScheme": {
+        "description": "Label for color scheme selection"
+    },
+    "personalInformation": "Personal Information",
+    "@personalInformation": {
+        "description": "Section title for personal information"
+    },
+    "username": "Username",
+    "@username": {
+        "description": "Label for username field"
+    },
+    "firstName": "First Name",
+    "@firstName": {
+        "description": "Label for first name field"
+    },
+    "lastName": "Last Name",
+    "@lastName": {
+        "description": "Label for last name field"
+    },
+    "email": "Email",
+    "@email": {
+        "description": "Label for email field"
+    },
+    "about": "About",
+    "@about": {
+        "description": "Label for about section"
+    },
+    "preferences": "Preferences",
+    "@preferences": {
+        "description": "Label for preferences section"
+    },
+    "language": "Language",
+    "@language": {
+        "description": "Label for language selection"
+    },
+    "notSet": "Not set",
+    "@notSet": {
+        "description": "Text shown when a value is not set"
+    },
+    "loading": "Loading...",
+    "@loading": {
+        "description": "Text shown during loading states"
+    },
+    "errorLoading": "Error loading {field}",
+    "@errorLoading": {
+        "description": "Text shown when there's an error loading data",
+        "placeholders": {
+            "field": {
+                "type": "String",
+                "example": "email"
+            }
+        }
+    },
+    "logout": "Logout",
+    "@logout": {
+        "description": "Label for logout button"
+    },
+    "logoutConfirmation": "Are you sure you want to logout?",
+    "@logoutConfirmation": {
+        "description": "Confirmation message shown before logout"
+    },
+    "cancel": "Cancel",
+    "@cancel": {
+        "description": "Label for cancel button"
+    },
+    "save": "Save",
+    "@save": {
+        "description": "Label for save button"
+    },
+    "edit": "Edit",
+    "@edit": {
+        "description": "Label for edit button"
+    }
+} 

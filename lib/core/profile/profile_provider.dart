@@ -249,3 +249,33 @@ final canEditAvatarProvider = Provider<bool>((ref) {
   dev.log('canEditAvatarProvider: isOnline = $isOnline'); // Add logging
   return isOnline;
 });
+
+// Add this provider to combine profile with user email
+final profileWithEmailProvider = FutureProvider<Profile?>((ref) async {
+  final profileState = ref.watch(profileProvider);
+  final authState = ref.watch(authServiceProvider);
+  final userRepository = ref.watch(userRepositoryProvider);
+
+  if (profileState.profile == null) return null;
+
+  return authState.maybeMap(
+    authenticated: (state) async {
+      // Convert string ID to int since that's what the database uses
+      final userId = int.tryParse(state.userId);
+      if (userId == null) return profileState.profile;
+
+      // Get user by ID from the database
+      final users = await userRepository.getAllUsers();
+      final user = users.where((u) => u.id == userId).firstOrNull;
+      if (user == null) return profileState.profile;
+
+      // Create a new profile with the email from the user
+      return profileState.profile!.copyWith(
+        attributes: profileState.profile!.attributes.copyWith(
+          email: user.email,
+        ),
+      );
+    },
+    orElse: () => profileState.profile,
+  );
+});
