@@ -25,7 +25,6 @@ class ProfileApi {
   }
 
   Future<ApiResponse<Profile>> updateProfile({
-    required String userId,
     String? firstName,
     String? lastName,
     String? about,

@@ -31,40 +31,6 @@ class ImageManager {
     return imageDir.path;
   }
 
-  Future<String> downloadImage(String url, String fileName) async {
-    final imageDir = await getImageDirectory();
-    final filePath = path.join(imageDir, fileName);
-
-    // Check if file already exists
-    if (await File(filePath).exists()) {
-      return filePath;
-    }
-
-    try {
-      final response = await _dio.get(
-        url,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      final file = File(filePath);
-      await file.writeAsBytes(response.data);
-      return filePath;
-    } catch (e) {
-      throw ImageDownloadException('Failed to download image: $e');
-    }
-  }
-
-  Future<void> deleteImage(String filePath) async {
-    try {
-      final file = File(filePath);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    } catch (e) {
-      throw ImageDeleteException('Failed to delete image: $e');
-    }
-  }
-
   String generateImageFileName(int userId, String size) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return 'profile_${userId}_${size}_$timestamp.webp';
@@ -118,7 +84,7 @@ class ImageManager {
   }
 
   Future<ImagePaths> downloadAndSaveProfileImages({
-    required String userId,
+    required int userId,
     required String thumbnailUrl,
     required String mediumUrl,
   }) async {
@@ -150,21 +116,10 @@ class ImageManager {
         mediumPath: mediumPath,
       );
     } catch (e) {
-      dev.log('ImageManager: Error downloading images', error: e);
+      dev.log('ImageManager: Failed to download and save profile images',
+          error: e);
       rethrow;
     }
-  }
-
-  Future<T> _retryWithBackoff<T>(Future<T> Function() operation) async {
-    for (var i = 0; i < _maxRetries; i++) {
-      try {
-        return await operation();
-      } catch (e) {
-        if (i == _maxRetries - 1) rethrow;
-        await Future.delayed(_retryDelays[i]);
-      }
-    }
-    throw Exception('Retry failed after $_maxRetries attempts');
   }
 
   Future<void> cleanupTemporaryFiles(int userId) async {
@@ -197,20 +152,29 @@ class ImageManager {
     );
     final file = File(filePath);
     await file.writeAsBytes(response.data);
-    dev.log('ImageManager: Saved file to: $filePath');
   }
-}
 
-class ImageDownloadException implements Exception {
-  final String message;
-  ImageDownloadException(this.message);
-  @override
-  String toString() => message;
-}
+  Future<T> _retryWithBackoff<T>(Future<T> Function() operation) async {
+    for (var i = 0; i < _maxRetries; i++) {
+      try {
+        return await operation();
+      } catch (e) {
+        if (i == _maxRetries - 1) rethrow;
+        await Future.delayed(_retryDelays[i]);
+      }
+    }
+    throw Exception('Retry failed after $_maxRetries attempts');
+  }
 
-class ImageDeleteException implements Exception {
-  final String message;
-  ImageDeleteException(this.message);
-  @override
-  String toString() => message;
+  Future<void> deleteImage(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      dev.log('Failed to delete image: $e');
+      rethrow;
+    }
+  }
 }

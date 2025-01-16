@@ -33,7 +33,7 @@ class ProfileRepository {
         _config = config,
         _imageManager = imageManager ?? ImageManager(dio: Dio());
 
-  api.Profile _convertToApiProfile(Profile dbProfile,
+api.Profile _convertToApiProfile(Profile dbProfile,
       {api.AvatarUrls? serverUrls}) {
     return api.Profile(
       id: dbProfile.userId.toString(),
@@ -50,7 +50,12 @@ class ProfileRepository {
         createdAt: dbProfile.createdAt,
         updatedAt: dbProfile.updatedAt,
         email: '', // Email handled by auth
-        avatarUrls: serverUrls,
+        avatarUrls: serverUrls ?? (dbProfile.thumbnailUrl != null && dbProfile.mediumUrl != null
+            ? api.AvatarUrls(
+                thumbnail: dbProfile.thumbnailUrl,
+                medium: dbProfile.mediumUrl,
+              )
+            : null),
       ),
       localThumbnailPath: dbProfile.thumbnailPath,
       localMediumPath: dbProfile.mediumPath,
@@ -116,6 +121,8 @@ class ProfileRepository {
     String? preferredLanguage,
     String? username,
   }) async {
+    dev.log('ProfileRepository: Updating profile for user $userId');
+
     // 1. Update local DB first
     await _db.upsertProfile(
       userId: userId,
@@ -130,23 +137,39 @@ class ProfileRepository {
     );
 
     // 2. Try to sync immediately if online
-    await _queueManager.enqueueOperation(
-      type: OperationType.profileUpdate,
-      payload: {
-        'userId': userId,
-        'firstName': firstName,
-        'lastName': lastName,
-        'about': about,
-        'displayName': displayName,
-        'preferredTheme': preferredTheme,
-        'preferredLanguage': preferredLanguage,
-        'username': username,
-      },
-    );
+    try {
+      // Ensure QueueManager has the correct userId
+      if (_queueManager.userId != userId.toString()) {
+        dev.log(
+            'ProfileRepository: Updating QueueManager userId to match profile update');
+        _queueManager.updateUserId(userId.toString());
+      }
+
+      await _queueManager.enqueueOperation(
+        type: OperationType.profileUpdate,
+        payload: {
+          'userId': userId,
+          'firstName': firstName,
+          'lastName': lastName,
+          'about': about,
+          'displayName': displayName,
+          'preferredTheme': preferredTheme,
+          'preferredLanguage': preferredLanguage,
+          'username': username,
+        },
+      );
+      dev.log('ProfileRepository: Profile update queued successfully');
+    } catch (e) {
+      dev.log('ProfileRepository: Failed to queue profile update', error: e);
+      // Don't rethrow here, as we want to return the local profile even if queueing fails
+    }
 
     // 3. Return local profile immediately
     final localProfile = await _db.getProfile(userId);
-    return _convertToApiProfile(localProfile!);
+    if (localProfile == null) {
+      throw Exception('Failed to get updated profile from local database');
+    }
+    return _convertToApiProfile(localProfile);
   }
 
   // Convenience method that accepts string ID
@@ -234,7 +257,7 @@ class ProfileRepository {
       // Continue with download only if files don't match
       dev.log('ProfileRepository: ACTUALLY STARTING DOWNLOAD');
       final newPaths = await _imageManager.downloadAndSaveProfileImages(
-        userId: userId.toString(),
+        userId: userId,
         thumbnailUrl:
             '${_config.baseUrl}${profile.attributes.avatarUrls!.thumbnail}',
         mediumUrl: '${_config.baseUrl}${profile.attributes.avatarUrls!.medium}',
@@ -246,6 +269,8 @@ class ProfileRepository {
           dbProfile.copyWith(
             thumbnailPath: Value(newPaths.thumbnailPath),
             mediumPath: Value(newPaths.mediumPath),
+            thumbnailUrl: Value(profile.attributes.avatarUrls?.thumbnail),
+            mediumUrl: Value(profile.attributes.avatarUrls?.medium),
             imageUpdatedAt: Value(DateTime.now()),
           ),
         );
@@ -310,13 +335,76 @@ class ProfileRepository {
   }
 
   Future<api.Profile> _fetchFromServer(int userId) async {
+    dev.log('ProfileRepository: Fetching profile from server for user $userId');
     final response = await _apiClient.profileApi.getProfile(userId.toString());
+
     if (response.data != null) {
-      final profile = response.data!;
-      if (profile.attributes.avatarUrls != null) {
-        return syncProfileImages(profile);
+      final serverProfile = response.data!;
+      final dbProfile = await _db.getProfile(userId);
+
+      // Compare timestamps to determine which data is newer
+      final serverTimestamp = serverProfile.attributes.updatedAt;
+      final localTimestamp = dbProfile?.updatedAt;
+
+      dev.log('ProfileRepository: Server timestamp: $serverTimestamp');
+      dev.log('ProfileRepository: Local timestamp: $localTimestamp');
+      dev.log('ProfileRepository: Local sync status: ${dbProfile?.syncStatus}');
+
+      // If we have pending local changes and they're newer than server data, preserve them
+      if (dbProfile?.syncStatus == 'pending' &&
+          localTimestamp != null &&
+          serverTimestamp != null &&
+          localTimestamp.isAfter(serverTimestamp)) {
+        dev.log(
+            'ProfileRepository: Found newer pending local changes, preserving them');
+        // Queue the update to sync local changes to server
+        await _queueManager.enqueueOperation(
+          type: OperationType.profileUpdate,
+          payload: {
+            'userId': userId,
+            'firstName': dbProfile!.firstName,
+            'lastName': dbProfile.lastName,
+            'about': dbProfile.about,
+            'displayName': dbProfile.displayName,
+            'preferredTheme': dbProfile.preferredTheme,
+            'preferredLanguage': dbProfile.preferredLanguage,
+            'username': dbProfile.username,
+          },
+        );
+        return _convertToApiProfile(dbProfile);
       }
-      return profile;
+
+      // Server data is newer or no local changes, update local database
+      dev.log('ProfileRepository: Updating local database with server data');
+
+      // Create a new Profile instance with server data
+      final updatedProfile = Profile(
+        userId: userId,
+        username: serverProfile.attributes.username,
+        firstName: serverProfile.attributes.firstName,
+        lastName: serverProfile.attributes.lastName,
+        about: serverProfile.attributes.about,
+        displayName: serverProfile.attributes.displayName,
+        preferredTheme: serverProfile.attributes.preferredTheme,
+        preferredLanguage: serverProfile.attributes.preferredLanguage,
+        syncStatus: 'synced',
+        updatedAt: serverProfile.attributes.updatedAt ?? DateTime.now(),
+        createdAt: serverProfile.attributes.createdAt ?? DateTime.now(),
+        thumbnailPath: dbProfile?.thumbnailPath,
+        mediumPath: dbProfile?.mediumPath,
+        thumbnailUrl: dbProfile?.thumbnailUrl,
+        mediumUrl: dbProfile?.mediumUrl,
+        imageUpdatedAt: dbProfile?.imageUpdatedAt,
+      );
+
+      // Update the database with the new profile
+      await _db.updateProfile(updatedProfile);
+
+      if (serverProfile.attributes.avatarUrls != null) {
+        return syncProfileImages(serverProfile);
+      }
+
+      return _convertToApiProfile(updatedProfile);
     }
     throw Exception('Server returned no profile data');
   }

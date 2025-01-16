@@ -53,18 +53,15 @@ final themeProvider =
     return NotAuthenticatedThemeNotifier();
   }
 
-  final db = ref.watch(databaseProvider);
-  final api = ref.watch(apiClientProvider);
-  final queueManager = ref.watch(queueManagerProvider);
   final userId = authState.maybeMap(
     authenticated: (state) => state.userId,
     orElse: () => throw StateError('User must be authenticated'),
   );
 
   return AuthenticatedThemeNotifier(
-    db: db,
-    api: api,
-    queueManager: queueManager,
+    db: ref.read(databaseProvider),
+    api: ref.read(apiClientProvider),
+    queueManager: ref.read(QueueManager.currentProvider),
     userId: userId,
     ref: ref,
   );
@@ -84,13 +81,7 @@ class AuthenticatedThemeNotifier extends BaseThemeNotifier {
     required this.queueManager,
     required this.userId,
     required this.ref,
-  })  : _repository = ProfileRepository(
-          apiClient: api,
-          db: db,
-          queueManager: queueManager,
-          resolver: ConflictResolver(resolvers: {'profile': ProfileResolver()}),
-          config: ref.read(envConfigProvider),
-        ),
+  })  : _repository = ref.read(profileRepositoryProvider),
         super(ThemeMode.system) {
     _loadStoredTheme();
 

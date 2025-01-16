@@ -1,16 +1,16 @@
 import 'package:bentobook/core/api/api_client.dart';
+import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/database/database.dart';
 import 'package:bentobook/core/network/connectivity_service.dart';
 import 'package:bentobook/core/profile/profile_repository.dart';
-import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:bentobook/core/sync/queue_manager.dart';
+import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
+import 'package:bentobook/core/image/image_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bentobook/core/database/database.dart';
-import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/repositories/user_repository.dart';
 import 'package:bentobook/core/config/env_config.dart';
 import 'dart:developer' as dev;
 import 'package:bentobook/core/sync/conflict_resolver.dart';
-import 'package:bentobook/core/sync/resolvers/profile_resolver.dart';
-import 'package:bentobook/core/image/image_manager.dart';
 
 // Database providers
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -37,25 +37,14 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository(db);
 });
 
-final queueManagerProvider = Provider<QueueManager>((ref) {
-  final db = ref.watch(databaseProvider);
-  final api = ref.watch(apiClientProvider);
-  final connectivity = ref.watch(connectivityProvider);
-  final authState = ref.watch(authServiceProvider);
-  final userId = authState.maybeMap(
-      authenticated: (state) => state.userId, orElse: () => null);
-
-  return QueueManager(
-      db: db, api: api, connectivity: connectivity, userId: userId);
-});
-
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(
     db: ref.read(databaseProvider),
     apiClient: ref.read(apiClientProvider),
-    queueManager: ref.read(queueManagerProvider),
+    queueManager: ref.read(QueueManager.currentProvider),
     resolver: ref.read(conflictResolverProvider),
     config: ref.read(envConfigProvider),
+    imageManager: ref.read(imageManagerProvider),
   );
 });
 

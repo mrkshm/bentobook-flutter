@@ -25,15 +25,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     return CustomTransitionPage<void>(
       key: state.pageKey,
       child: child,
-      transitionDuration: const Duration(milliseconds: 300),
-      reverseTransitionDuration: const Duration(milliseconds: 300),
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return PageTransition(
           type: isBack
               ? PageTransitionType.leftToRight
               : PageTransitionType.rightToLeft,
-          duration: const Duration(milliseconds: 300),
-          reverseDuration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 200),
+          reverseDuration: const Duration(milliseconds: 200),
           child: child,
         ).buildTransitions(
           context,

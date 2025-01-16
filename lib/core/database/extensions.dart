@@ -133,18 +133,6 @@ extension ProfileOperations on AppDatabase {
     }
   }
 
-  Future<void> updateProfileSyncStatus(String userId, String status) async {
-    dev.log('Database: Updating profile sync status: $userId -> $status');
-    try {
-      final id = int.parse(userId);
-      await (update(profiles)..where((p) => p.userId.equals(id)))
-          .write(ProfilesCompanion(syncStatus: Value(status)));
-    } catch (e) {
-      dev.log('Error parsing user ID: $userId', error: e);
-      rethrow;
-    }
-  }
-
   Future<List<Profile>> getUnsyncedProfiles() async {
     return (select(profiles)..where((p) => p.syncStatus.equals('pending')))
         .get();

@@ -128,11 +128,12 @@ class _ProfileEditSheetState extends ConsumerState<ProfileEditSheet> {
       });
 
       final repository = ref.read(profileRepositoryProvider);
+      final authState = ref.read(authServiceProvider);
 
-      final userId = ref.read(authServiceProvider).maybeMap(
-            authenticated: (state) => state.userId,
-            orElse: () => throw Exception('Not authenticated'),
-          );
+      final userId = authState.maybeMap(
+        authenticated: (state) => state.userId,
+        orElse: () => throw Exception('Not authenticated'),
+      );
 
       final intId = int.parse(userId);
       await repository.updateProfile(

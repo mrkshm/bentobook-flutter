@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bentobook/core/shared/providers.dart';
 import 'package:bentobook/core/profile/profile_provider.dart';
 import 'package:bentobook/core/auth/auth_service.dart';
+import 'package:bentobook/core/sync/operation_types.dart';
+import 'package:bentobook/core/sync/queue_manager.dart';
 import 'dart:developer' as dev;
 
 class LocaleNotifier extends StateNotifier<Locale> {
@@ -17,7 +19,7 @@ class LocaleNotifier extends StateNotifier<Locale> {
     try {
       final profile = _ref.read(profileProvider).profile;
       if (profile?.attributes.preferredLanguage != null) {
-        setLocale(Locale(profile!.attributes.preferredLanguage!));
+        state = Locale(profile!.attributes.preferredLanguage!);
       }
     } catch (e) {
       dev.log('Error loading stored locale', error: e);
@@ -25,22 +27,20 @@ class LocaleNotifier extends StateNotifier<Locale> {
   }
 
   Future<void> setLocale(Locale locale) async {
+    // Update state immediately for responsive UI
     state = locale;
-    // Update user's preferred language in profile
-    try {
-      final userId = _ref.read(authServiceProvider).maybeMap(
-            authenticated: (state) => int.tryParse(state.userId),
-            orElse: () => null,
-          );
 
-      if (userId != null) {
-        await _ref.read(profileRepositoryProvider).updateProfile(
-              userId: userId,
-              preferredLanguage: locale.languageCode,
-            );
-      }
+    try {
+      // Queue the locale update for server sync
+      await _ref.read(QueueManager.currentProvider).enqueueOperation(
+        type: OperationType.localeUpdate,
+        payload: {'locale': locale.languageCode},
+      );
+      dev.log('Locale update queued successfully');
     } catch (e) {
-      dev.log('Error saving locale preference', error: e);
+      dev.log('Error queueing locale update', error: e);
+      // Don't revert the UI state even if queueing fails
+      // The queue manager will retry the operation
     }
   }
 }

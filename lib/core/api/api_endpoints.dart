@@ -12,4 +12,5 @@ class ApiEndpoints {
   static const String updateAvatar = '/profile/avatar';
   static const String deleteAvatar = '/profile/avatar';
   static const String verifyUsername = '/usernames/verify';
+  static const String updateLanguage = '/profile/locale';
 }
